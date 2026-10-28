@@ -93,6 +93,7 @@ class ChessBoardView(Gtk.DrawingArea):
 
         # Callbacks
         self.on_move_made: Optional[Callable[[chess.Move], None]] = None
+        self.on_flipped: Optional[Callable[[bool], None]] = None
 
         # Connect drawing pipeline
         self.set_draw_func(self._on_draw)
@@ -121,6 +122,8 @@ class ChessBoardView(Gtk.DrawingArea):
         self.flipped = not self.flipped
         self.geometry.flipped = self.flipped
         self.queue_draw()
+        if self.on_flipped:
+            self.on_flipped(self.flipped)
 
     def clear_drawings(self):
         """Clear all user arrow and highlight annotations."""

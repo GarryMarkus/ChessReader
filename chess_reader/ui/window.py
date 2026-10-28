@@ -238,6 +238,7 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         )
         self.board_view.set_size_request(400, 400)
         self.board_view.on_move_made = self._on_board_move_played
+        self.board_view.on_flipped = lambda flipped: self.eval_bar.set_flipped(flipped)
         board_row.append(self.board_view)
         self.board_panel.append(board_row)
 
@@ -339,6 +340,38 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         if keyval == Gdk.KEY_Escape:
             self.board_view.clear_drawings()
             return True
+
+        # Board Mode Navigation & Actions
+        if self.main_stack.get_visible_child_name() == "board":
+            # Left Arrow -> Previous Move
+            if keyval == Gdk.KEY_Left:
+                self.game_model.prev_move()
+                return True
+
+            # Right Arrow -> Next Move
+            if keyval == Gdk.KEY_Right:
+                self.game_model.next_move()
+                return True
+
+            # Up Arrow / Home -> Go to Start of Game
+            if keyval in (Gdk.KEY_Up, Gdk.KEY_Home):
+                self.game_model.go_to_root()
+                return True
+
+            # Down Arrow / End -> Go to End of Game
+            if keyval in (Gdk.KEY_Down, Gdk.KEY_End):
+                self.game_model.go_to_end()
+                return True
+
+            # F / f (without Ctrl) -> Flip Board & Eval Bar
+            if not is_ctrl and keyval in (Gdk.KEY_f, Gdk.KEY_F):
+                self._on_flip_clicked(None)
+                return True
+
+            # Spacebar -> Toggle Engine Analysis
+            if not is_ctrl and keyval == Gdk.KEY_space:
+                self._toggle_engine()
+                return True
 
         return False
 

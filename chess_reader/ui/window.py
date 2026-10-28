@@ -23,6 +23,7 @@ from chess_reader.ui.dock.engine_dock import EngineDock
 from chess_reader.ui.palette.command_palette import CommandPalette, CommandItem
 from chess_reader.ui.modals.fen_dialog import FENSetupDialog
 from chess_reader.ui.modals.appearance_dialog import AppearanceDialog
+from chess_reader.ui.modals.engine_dialog import EngineDialog
 from chess_reader.ui.home.home_view import HomeView
 
 
@@ -51,6 +52,11 @@ class ZedTitlebar(Gtk.Box):
         self.view_btn.set_tooltip_text("Toggle Library / Board View (Ctrl+H / Ctrl+B)")
         self.view_btn.add_css_class("flat")
         self.header.pack_end(self.view_btn)
+
+        self.engine_btn = Gtk.Button(label="⚙ Engine")
+        self.engine_btn.set_tooltip_text("Manage & Add Chess Engines")
+        self.engine_btn.add_css_class("flat")
+        self.header.pack_end(self.engine_btn)
 
         self.pieces_btn = Gtk.Button(label="♟ Pieces")
         self.pieces_btn.set_tooltip_text("Change Pieces & Themes (Ctrl+T)")
@@ -93,10 +99,15 @@ class StatusBar(Gtk.Box):
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self.add_css_class("zed-status-bar")
 
-        # Engine Depth & Nodes
-        self.engine_label = Gtk.Label(label="Stockfish 18 · Idle")
-        self.engine_label.add_css_class("zed-status-item")
-        self.append(self.engine_label)
+        # Engine Depth & Nodes (Interactive Button)
+        self.engine_btn = Gtk.Button(label="Stockfish 18 · Idle")
+        self.engine_btn.set_tooltip_text("Click to configure & add chess engines")
+        self.engine_btn.add_css_class("flat")
+        self.engine_btn.add_css_class("zed-status-interactive")
+        self.engine_label = self.engine_btn
+        self.engine_btn.set_text = self.engine_btn.set_label
+        self.engine_btn.get_text = self.engine_btn.get_label
+        self.append(self.engine_btn)
 
         # Flexible spacer
         spacer = Gtk.Box()
@@ -226,9 +237,11 @@ class ChessReaderWindow(Adw.ApplicationWindow):
 
         # Connect actions & listeners
         self.titlebar.view_btn.connect("clicked", lambda _: self.toggle_main_view())
+        self.titlebar.engine_btn.connect("clicked", lambda _: self.open_engine_dialog())
         self.titlebar.pieces_btn.connect("clicked", lambda _: self.open_appearance_dialog())
         self.titlebar.flip_btn.connect("clicked", self._on_flip_clicked)
         self.titlebar.palette_btn.connect("clicked", lambda _: self.open_command_palette())
+        self.status_bar.engine_btn.connect("clicked", lambda _: self.open_engine_dialog())
         self.status_bar.theme_btn.connect("clicked", lambda _: self.open_appearance_dialog())
         self.theme_manager.add_theme_listener(self._on_theme_changed)
         self.game_model.add_listener(self._on_game_model_changed)
@@ -356,6 +369,21 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         dlg = AppearanceDialog(self, self.theme_manager)
         dlg.present()
 
+    def open_engine_dialog(self):
+        """Open Chess Engine Management modal."""
+        dlg = EngineDialog(
+            parent_window=self,
+            engine_manager=self.engine_manager,
+            on_engine_switched=self._on_engine_switched
+        )
+        dlg.present()
+
+    def _on_engine_switched(self, eng_info: dict):
+        """Callback when active engine is changed or newly added."""
+        self.status_bar.engine_label.set_text(f"{eng_info['name']} · Ready")
+        if self.engine_enabled:
+            self._trigger_engine_analysis()
+
     def _on_library_game_loaded(self, game_ast: chess.pgn.Game, pgn_path: str):
         """Load a game from the library and transition directly to the board."""
         self.game_model = GameModel(game_ast)
@@ -406,6 +434,12 @@ class ChessReaderWindow(Adw.ApplicationWindow):
                 category="Appearance",
                 shortcut="Ctrl+T",
                 action=self.open_appearance_dialog
+            ),
+            CommandItem(
+                id="engine_modal",
+                title="Engine: Manage & Add Chess Engines...",
+                category="Engine",
+                action=self.open_engine_dialog
             ),
             CommandItem(
                 id="lib_add_folder",

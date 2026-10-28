@@ -17,6 +17,7 @@ gi.require_version('GLib', '2.0')
 from gi.repository import GLib
 
 from chess_reader.engine.analyzer import AnalysisLine, AnalysisSnapshot, score_to_white_cp
+from chess_reader.engine.engine_registry import EngineRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -31,13 +32,29 @@ class UCIEngineManager:
     ]
 
     def __init__(self, engine_path: Optional[str] = None):
-        self.engine_path = engine_path or self._discover_engine_path()
+        self.registry = EngineRegistry()
+        active = self.registry.get_active_engine()
+        self.engine_path = engine_path or (active["path"] if active else self._discover_engine_path())
         self._engine: Optional[chess.engine.SimpleEngine] = None
         self._current_analysis: Optional[chess.engine.AnalysisResult] = None
         self._worker_thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
         self._lock = threading.Lock()
         self._is_running = False
+
+    @property
+    def active_engine_name(self) -> str:
+        active = self.registry.get_active_engine()
+        return active["name"] if active else "Stockfish"
+
+    def switch_engine(self, engine_path: str, engine_id: Optional[str] = None) -> bool:
+        """Safely switch to a different UCI engine binary."""
+        self.stop_current_analysis()
+        self.close()
+        self.engine_path = engine_path
+        if engine_id:
+            self.registry.set_active_engine(engine_id)
+        return self.start()
 
     def _discover_engine_path(self) -> Optional[str]:
         # Check PATH

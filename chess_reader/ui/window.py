@@ -20,6 +20,7 @@ from chess_reader.ui.board.board_view import ChessBoardView
 from chess_reader.ui.board.player_card import PlayerCard, compute_material_and_captures, extract_player_clocks
 from chess_reader.ui.notation.move_tree_view import MoveTreeView
 from chess_reader.ui.notation.chapter_nav_bar import ChapterNavBar
+from chess_reader.ui.notation.chapter_list_view import ChapterListView
 from chess_reader.ui.dock.eval_bar import EvalBar
 from chess_reader.ui.dock.engine_dock import EngineDock
 from chess_reader.ui.palette.command_palette import CommandPalette, CommandItem
@@ -46,7 +47,7 @@ class ZedTitlebar(Gtk.Box):
         self.breadcrumb_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         self.breadcrumb_box.add_css_class("breadcrumb-box")
 
-        self.set_breadcrumb(["Live Analysis", "Starting Position"])
+        self.set_breadcrumb(["Library", "Databases & Folder Shortcuts"])
         self.header.pack_start(self.breadcrumb_box)
 
         # Center: ChessBase-style Navigation Switcher (Databases vs Board)
@@ -55,11 +56,11 @@ class ZedTitlebar(Gtk.Box):
 
         self.db_tab_btn = Gtk.Button(label="🗄 Databases")
         self.db_tab_btn.add_css_class("nav-tab-btn")
+        self.db_tab_btn.add_css_class("nav-tab-active")
         self.db_tab_btn.set_tooltip_text("ChessBase Database Window (Ctrl+H)")
 
         self.board_tab_btn = Gtk.Button(label="♟ Board Analysis")
         self.board_tab_btn.add_css_class("nav-tab-btn")
-        self.board_tab_btn.add_css_class("nav-tab-active")
         self.board_tab_btn.set_tooltip_text("Board Analysis Window (Ctrl+B)")
 
         self.nav_switcher.append(self.db_tab_btn)
@@ -67,8 +68,8 @@ class ZedTitlebar(Gtk.Box):
         self.header.set_title_widget(self.nav_switcher)
 
         # Right: Quick action buttons
-        self.view_btn = Gtk.Button(label="🏠 Library")
-        self.view_btn.set_tooltip_text("Toggle Library / Board View (Ctrl+H / Ctrl+B)")
+        self.view_btn = Gtk.Button(label="♟ Board")
+        self.view_btn.set_tooltip_text("Switch to Board Analysis (Ctrl+B)")
         self.view_btn.add_css_class("flat")
         self.header.pack_end(self.view_btn)
 
@@ -179,6 +180,7 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         super().__init__(**kwargs)
         self.set_title("ChessReader")
         self.set_default_size(1280, 840)
+        self.set_size_request(920, 620)
         self.add_css_class("chess-reader-window")
 
         # Managers & Domain State
@@ -218,18 +220,22 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         )
         self.main_stack.add_named(self.home_view, "home")
 
-        # 2b. Board Workspace Split Pane
+        # 2b. Board Workspace Split Pane (Anti-collapse shrink protection)
         self.workspace = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
         self.workspace.add_css_class("zed-workspace")
         self.workspace.set_vexpand(True)
+        self.workspace.set_shrink_start_child(False)
+        self.workspace.set_shrink_end_child(False)
+        self.workspace.set_resize_start_child(True)
+        self.workspace.set_resize_end_child(True)
         self.workspace.set_position(750)
         self.main_stack.add_named(self.workspace, "board")
-        self.main_stack.set_visible_child_name("board")
 
         # Left / Center: Interactive Chess Board + Eval Bar + Analysis Dock
         self.board_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.board_panel.add_css_class("zed-panel")
         self.board_panel.set_hexpand(True)
+        self.board_panel.set_size_request(480, 420)
 
         # Board Row (EvalBar + Board Center Column with Over/Under Player Cards)
         board_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
@@ -268,12 +274,12 @@ class ChessReaderWindow(Adw.ApplicationWindow):
 
         self.workspace.set_start_child(self.board_panel)
 
-        # Right: Move Notation Tree & Variations Panel
+        # Right: Move Notation Tree & Games List Split Pane
         self.notation_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.notation_panel.add_css_class("zed-sidebar")
-        self.notation_panel.set_size_request(380, -1)
+        self.notation_panel.set_size_request(340, 420)
 
-        # Chapter / Multi-Game Navigation Bar
+        # Chapter / Multi-Game Navigation Bar (Top of right sidebar)
         self.chapter_nav_bar = ChapterNavBar(
             on_prev_game=self.load_prev_game,
             on_next_game=self.load_next_game,
@@ -281,8 +287,26 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         )
         self.notation_panel.append(self.chapter_nav_bar)
 
+        # Right Vertical Split: Section 1 (Notation) + Section 2 (Games/Chapters in PGN)
+        self.right_paned = Gtk.Paned(orientation=Gtk.Orientation.VERTICAL)
+        self.right_paned.set_vexpand(True)
+        self.right_paned.set_shrink_start_child(False)
+        self.right_paned.set_shrink_end_child(False)
+        self.right_paned.set_resize_start_child(True)
+        self.right_paned.set_resize_end_child(True)
+        self.right_paned.set_position(340)
+
+        # Section 1: Move Notation Tree
         self.move_tree_view = MoveTreeView(game_model=self.game_model)
-        self.notation_panel.append(self.move_tree_view)
+        self.move_tree_view.set_size_request(-1, 160)
+        self.right_paned.set_start_child(self.move_tree_view)
+
+        # Section 2: Chapter / Game List in active PGN
+        self.chapter_list_view = ChapterListView(on_select_game=self.load_game_by_index)
+        self.chapter_list_view.set_size_request(-1, 140)
+        self.right_paned.set_end_child(self.chapter_list_view)
+
+        self.notation_panel.append(self.right_paned)
         self.workspace.set_end_child(self.notation_panel)
 
         # 3. Status Bar (Bottom Bar)
@@ -312,6 +336,9 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         self._on_theme_changed(self.theme_manager.active_theme)
         self._sync_view_to_game()
         self._trigger_engine_analysis()
+
+        # Start on the Home / Directory Page
+        self.show_home_view()
 
     def _setup_global_shortcuts(self):
         key_ctrl = Gtk.EventControllerKey.new()
@@ -516,11 +543,15 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         self._sync_view_to_game()
         self._trigger_engine_analysis()
 
-        # Update Chapter / Multi-Game Navigation Bar
+        # Update Chapter / Multi-Game Navigation Bar & Games List Sidebar
         self.chapter_nav_bar.update_game_info(
             current_index=self.active_game_index,
             total_games=len(self.active_pgn_games),
             games_list=self.active_pgn_games
+        )
+        self.chapter_list_view.update_games(
+            games_list=self.active_pgn_games,
+            current_index=self.active_game_index
         )
 
         self.show_board_view()
@@ -564,6 +595,7 @@ class ChessReaderWindow(Adw.ApplicationWindow):
             games_list=[],
             title="Starting Position"
         )
+        self.chapter_list_view.update_games([], 0)
 
     def run_full_game_review(self):
         """Run batch analysis across all moves in active game."""

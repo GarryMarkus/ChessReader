@@ -167,8 +167,8 @@ class HomeView(Gtk.Box):
         # Split into Files list (top) and Game list (bottom)
         right_paned = Gtk.Paned(orientation=Gtk.Orientation.VERTICAL)
         right_paned.set_position(300)
-        right_paned.set_shrink_start_child(True)
-        right_paned.set_shrink_end_child(True)
+        right_paned.set_shrink_start_child(False)
+        right_paned.set_shrink_end_child(False)
         right_paned.set_resize_start_child(True)
         right_paned.set_resize_end_child(True)
         right_paned.set_vexpand(True)
@@ -176,6 +176,7 @@ class HomeView(Gtk.Box):
 
         # PGN Files in Folder Pane
         files_section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        files_section.set_size_request(-1, 140)
         files_section.set_margin_start(18)
         files_section.set_margin_end(18)
         files_section.set_margin_top(14)
@@ -197,6 +198,7 @@ class HomeView(Gtk.Box):
 
         # Games inside selected PGN Pane
         games_section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        games_section.set_size_request(-1, 160)
         games_section.set_margin_start(18)
         games_section.set_margin_end(18)
         games_section.set_margin_top(10)
@@ -346,11 +348,15 @@ class HomeView(Gtk.Box):
 
         return card
 
-    def _create_recent_card(self, rec: Dict[str, Any]) -> Gtk.Button:
-        btn = Gtk.Button()
-        btn.add_css_class("zed-shortcut-card")
+    def _create_recent_card(self, rec: Dict[str, Any]) -> Gtk.Box:
+        card = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        card.add_css_class("zed-shortcut-card")
         if self.active_pgn_path == rec["path"]:
-            btn.add_css_class("zed-card-active")
+            card.add_css_class("zed-card-active")
+
+        btn = Gtk.Button()
+        btn.add_css_class("flat")
+        btn.set_hexpand(True)
 
         row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         row.set_margin_start(8)
@@ -365,11 +371,13 @@ class HomeView(Gtk.Box):
         name_lbl = Gtk.Label(label=rec["name"], xalign=0.0)
         name_lbl.add_css_class("zed-card-title")
         name_lbl.set_ellipsize(Pango.EllipsizeMode.END)
+        name_lbl.set_width_chars(10)
 
         count = rec.get("game_count", 1)
         desc_lbl = Gtk.Label(label=f"{count} game{'s' if count != 1 else ''} · {rec.get('size_str', '')}", xalign=0.0)
         desc_lbl.add_css_class("zed-card-desc")
         desc_lbl.set_ellipsize(Pango.EllipsizeMode.END)
+        desc_lbl.set_width_chars(10)
         vbox.append(name_lbl)
         vbox.append(desc_lbl)
         vbox.set_hexpand(True)
@@ -384,7 +392,24 @@ class HomeView(Gtk.Box):
         )
         btn.add_controller(click_ctrl)
         btn.connect("clicked", lambda _, p=rec["path"]: self._select_pgn(p))
-        return btn
+        card.append(btn)
+
+        # Delete / remove recent database button
+        del_btn = Gtk.Button(label="✕")
+        del_btn.add_css_class("flat")
+        del_btn.add_css_class("zed-btn-remove")
+        del_btn.set_hexpand(False)
+        del_btn.set_tooltip_text("Remove from recent databases")
+        del_btn.connect("clicked", lambda _, p=rec["path"]: self._remove_recent(p))
+        card.append(del_btn)
+
+        return card
+
+    def _remove_recent(self, file_path: str):
+        self.library_store.remove_recent_file(file_path)
+        self.refresh_recents()
+        if self.active_folder_path == "all":
+            self._select_all_databases()
 
     def _select_all_databases(self):
         """Aggregate and display all databases from all pinned folders and recents."""

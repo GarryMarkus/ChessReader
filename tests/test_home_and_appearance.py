@@ -73,11 +73,18 @@ def test_window_stack_view_toggle():
     app = Adw.Application(application_id="io.github.antigravity.ChessReader.StackTest")
     win = ChessReaderWindow(application=app)
 
-    # Initial view is board
+    # Initial view on startup is the Home / Directory page
+    assert win.main_stack.get_visible_child_name() == "home"
+    assert win.titlebar.db_tab_btn.has_css_class("nav-tab-active")
+    assert not win.titlebar.board_tab_btn.has_css_class("nav-tab-active")
+
+    # Switch to board
+    win.show_board_view()
     assert win.main_stack.get_visible_child_name() == "board"
     assert win.titlebar.board_tab_btn.has_css_class("nav-tab-active")
+    assert not win.titlebar.db_tab_btn.has_css_class("nav-tab-active")
 
-    # Switch to home
+    # Switch back to home
     win.show_home_view()
     assert win.main_stack.get_visible_child_name() == "home"
     assert win.titlebar.db_tab_btn.has_css_class("nav-tab-active")

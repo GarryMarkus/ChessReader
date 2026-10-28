@@ -144,6 +144,12 @@ class LibraryStore:
             self._save()
         return list(self.recent_files)
 
+    def remove_recent_file(self, file_path: str):
+        """Remove a file from the recent databases list."""
+        abs_path = os.path.abspath(file_path)
+        self.recent_files = [r for r in self.recent_files if os.path.abspath(r.get("path", "")) != abs_path]
+        self._save()
+
     def create_new_pgn_file(
         self,
         file_path: str,

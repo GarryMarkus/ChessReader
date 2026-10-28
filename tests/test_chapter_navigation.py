@@ -14,6 +14,7 @@ from gi.repository import Gtk, Gdk, Adw
 import chess.pgn
 
 from chess_reader.ui.notation.chapter_nav_bar import ChapterNavBar
+from chess_reader.ui.notation.chapter_list_view import ChapterListView
 from chess_reader.ui.window import ChessReaderWindow
 
 
@@ -76,6 +77,9 @@ def test_window_chapter_switching_without_returning_to_library():
         app = Adw.Application(application_id="io.github.antigravity.ChessReader.ChapterTest")
         win = ChessReaderWindow(application=app)
 
+        # Startup opens to Home Directory view
+        assert win.main_stack.get_visible_child_name() == "home"
+
         # Load game 0
         game0 = win.library_store.load_game_from_pgn(pgn_path, 0)
         win._on_library_game_loaded(game0, pgn_path, 0)
@@ -84,27 +88,66 @@ def test_window_chapter_switching_without_returning_to_library():
         assert win.active_game_index == 0
         assert len(win.active_pgn_games) == 3
         assert win.chapter_nav_bar.badge_lbl.get_text() == "1/3"
+        assert len(win.chapter_list_view.games_list) == 3
+        assert win.chapter_list_view.current_index == 0
 
         # Step next to Chapter 2
         win.load_next_game()
         assert win.active_game_index == 1
         assert win.chapter_nav_bar.badge_lbl.get_text() == "2/3"
+        assert win.chapter_list_view.current_index == 1
 
         # Step next to Chapter 3 via keyboard shortcut ']'
         handled = win._on_window_key_pressed(None, Gdk.KEY_bracketright, 0, Gdk.ModifierType(0))
         assert handled is True
         assert win.active_game_index == 2
         assert win.chapter_nav_bar.badge_lbl.get_text() == "3/3"
+        assert win.chapter_list_view.current_index == 2
 
         # Step prev back to Chapter 2 via keyboard shortcut '['
         handled = win._on_window_key_pressed(None, Gdk.KEY_bracketleft, 0, Gdk.ModifierType(0))
         assert handled is True
         assert win.active_game_index == 1
         assert win.chapter_nav_bar.badge_lbl.get_text() == "2/3"
+        assert win.chapter_list_view.current_index == 1
 
         # Direct selection of Chapter 1
         win.load_game_by_index(0)
         assert win.active_game_index == 0
         assert win.chapter_nav_bar.badge_lbl.get_text() == "1/3"
+        assert win.chapter_list_view.current_index == 0
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def test_chapter_list_view():
+    selected = []
+    view = ChapterListView(on_select_game=lambda idx: selected.append(idx))
+
+    mock_games = [
+        {"index": 0, "white": "Carlsen", "black": "Nakamura", "event": "WCh 2024", "result": "1-0"},
+        {"index": 1, "white": "Kasparov", "black": "Karpov", "event": "WCh 1985", "result": "1/2-1/2"},
+        {"index": 2, "white": "Fischer", "black": "Spassky", "event": "WCh 1972", "result": "1-0"},
+    ]
+    view.update_games(mock_games, current_index=0)
+
+    assert view.count_lbl.get_text() == "GAMES IN PGN (3)"
+    assert len(view._row_widgets) == 3
+    assert view.current_index == 0
+
+    # Test selection
+    view.set_active_index(1)
+    assert view.current_index == 1
+    assert view._row_widgets[1].has_css_class("chapter-row-active") is True
+    assert view._row_widgets[0].has_css_class("chapter-row-active") is False
+
+    # Test search filter
+    view.search_entry.set_text("fischer")
+    view.search_entry.emit("search-changed")
+    assert len(view._row_widgets) == 1
+    assert 2 in view._row_widgets
+
+    # Clear filter
+    view.search_entry.set_text("")
+    view.search_entry.emit("search-changed")
+    assert len(view._row_widgets) == 3

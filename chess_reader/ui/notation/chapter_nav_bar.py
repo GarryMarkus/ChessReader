@@ -40,6 +40,7 @@ class ChapterNavBar(Gtk.Box):
         # 1. Previous Game Button
         self.btn_prev = Gtk.Button(label="◀ Prev")
         self.btn_prev.add_css_class("chapter-btn-nav")
+        self.btn_prev.set_hexpand(False)
         self.btn_prev.set_tooltip_text("Previous Game / Chapter in PGN (Alt+Left / [)")
         self.btn_prev.set_sensitive(False)
         self.btn_prev.connect("clicked", lambda _: self._on_prev_clicked())
@@ -54,16 +55,20 @@ class ChapterNavBar(Gtk.Box):
         menu_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         self.badge_lbl = Gtk.Label(label="1/1")
         self.badge_lbl.add_css_class("chapter-badge")
+        self.badge_lbl.set_hexpand(False)
         menu_row.append(self.badge_lbl)
 
         self.title_lbl = Gtk.Label(label="Starting Position", xalign=0.0)
         self.title_lbl.add_css_class("chapter-title-text")
         self.title_lbl.set_ellipsize(Pango.EllipsizeMode.END)
+        self.title_lbl.set_width_chars(8)
+        self.title_lbl.set_max_width_chars(25)
         self.title_lbl.set_hexpand(True)
         menu_row.append(self.title_lbl)
 
         chevron = Gtk.Label(label="▾")
         chevron.add_css_class("chapter-chevron")
+        chevron.set_hexpand(False)
         menu_row.append(chevron)
         self.btn_menu.set_child(menu_row)
 
@@ -72,6 +77,7 @@ class ChapterNavBar(Gtk.Box):
         # 3. Next Game Button
         self.btn_next = Gtk.Button(label="Next ▶")
         self.btn_next.add_css_class("chapter-btn-nav")
+        self.btn_next.set_hexpand(False)
         self.btn_next.set_tooltip_text("Next Game / Chapter in PGN (Alt+Right / ])")
         self.btn_next.set_sensitive(False)
         self.btn_next.connect("clicked", lambda _: self._on_next_clicked())

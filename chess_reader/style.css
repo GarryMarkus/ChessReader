@@ -180,3 +180,76 @@ paned.zed-workspace > separator {
     border-radius: 3px;
     margin-left: 4px;
 }
+
+/* ==========================================================================
+   Engine Dock, Eval Bar & CPL Graph Styles (Zed Aesthetic)
+   ========================================================================== */
+
+.eval-bar {
+    margin-right: 6px;
+    border-radius: 3px;
+}
+
+.engine-dock {
+    background-color: @zed_bg_darkest;
+    border-top: 1px solid @zed_border_subtle;
+}
+
+.engine-dock-header {
+    background-color: @zed_bg_darkest;
+    border-bottom: 1px solid @zed_border_subtle;
+    padding: 2px 8px;
+    min-height: 28px;
+}
+
+.engine-header-title {
+    font-family: "JetBrains Mono", "Adwaita Mono", monospace;
+    font-size: 11px;
+    color: @zed_fg_secondary;
+    font-weight: 500;
+}
+
+.engine-header-badge {
+    font-size: 10px;
+    background-color: @zed_bg_hover;
+    color: @zed_fg_primary;
+    border-radius: 3px;
+    padding: 2px 6px;
+}
+
+.engine-dock-content {
+    padding: 6px 12px;
+}
+
+.engine-line-row {
+    padding: 2px 0;
+}
+
+.engine-pv-badge {
+    font-size: 10px;
+    color: @zed_fg_muted;
+    font-weight: 700;
+    min-width: 20px;
+}
+
+.engine-score-badge {
+    font-family: "JetBrains Mono", "Adwaita Mono", monospace;
+    font-size: 11px;
+    font-weight: 700;
+    color: @zed_accent_green;
+    background-color: @zed_bg_hover;
+    border-radius: 3px;
+    padding: 1px 5px;
+    min-width: 44px;
+}
+
+.engine-san-line {
+    font-family: "JetBrains Mono", "Adwaita Mono", monospace;
+    font-size: 11px;
+    color: @zed_fg_primary;
+}
+
+.cpl-graph-view {
+    border-radius: 3px;
+    margin-top: 6px;
+}

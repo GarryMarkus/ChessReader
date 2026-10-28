@@ -12,8 +12,11 @@ import chess
 from chess_reader.core.game_model import GameModel
 from chess_reader.theme.loader import ThemeManager
 from chess_reader.theme.asset_cache import PieceAssetCache
+from chess_reader.engine.uci_client import UCIEngineManager
 from chess_reader.ui.board.board_view import ChessBoardView
 from chess_reader.ui.notation.move_tree_view import MoveTreeView
+from chess_reader.ui.dock.eval_bar import EvalBar
+from chess_reader.ui.dock.engine_dock import EngineDock
 
 
 class ZedTitlebar(Gtk.Box):
@@ -118,6 +121,7 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         self.theme_manager = ThemeManager()
         self.asset_cache = PieceAssetCache()
         self.game_model = GameModel()
+        self.engine_manager = UCIEngineManager()
 
         # Libadwaita ToolbarView handles CSD chrome and status bars seamlessly
         self.toolbar_view = Adw.ToolbarView()
@@ -133,17 +137,31 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         self.workspace.set_vexpand(True)
         self.toolbar_view.set_content(self.workspace)
 
-        # Left / Center: Interactive Chess Board
+        # Left / Center: Interactive Chess Board + Eval Bar + Analysis Dock
         self.board_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.board_panel.add_css_class("zed-panel")
         self.board_panel.set_hexpand(True)
+
+        # Board Row (EvalBar + ChessBoardView)
+        board_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        board_row.set_vexpand(True)
+        board_row.set_hexpand(True)
+
+        self.eval_bar = EvalBar()
+        board_row.append(self.eval_bar)
 
         self.board_view = ChessBoardView(
             theme=self.theme_manager.active_theme,
             asset_cache=self.asset_cache
         )
         self.board_view.on_move_made = self._on_board_move_played
-        self.board_panel.append(self.board_view)
+        board_row.append(self.board_view)
+        self.board_panel.append(board_row)
+
+        # Bottom Dock (Collapsible Multi-PV & CPL Graph)
+        self.engine_dock = EngineDock()
+        self.board_panel.append(self.engine_dock)
+
         self.workspace.set_start_child(self.board_panel)
 
         # Right: Move Notation Tree & Variations Panel
@@ -160,25 +178,29 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         self.toolbar_view.add_bottom_bar(self.status_bar)
 
         # Connect actions & listeners
-        self.titlebar.flip_btn.connect("clicked", lambda _: self.board_view.flip())
+        self.titlebar.flip_btn.connect("clicked", self._on_flip_clicked)
         self.theme_manager.add_theme_listener(self._on_theme_changed)
         self.game_model.add_listener(self._on_game_model_changed)
 
-        # Initial synchronization
+        # Connect window destroy to close engine
+        self.connect("destroy", lambda _: self.engine_manager.close())
+
+        # Initial synchronization & engine trigger
         self._sync_view_to_game()
+        self._trigger_engine_analysis()
+
+    def _on_flip_clicked(self, btn):
+        self.board_view.flip()
+        self.eval_bar.set_flipped(self.board_view.flipped)
 
     def _on_board_move_played(self, move: chess.Move):
-        """User played a move on the board -> record in PGN variation tree."""
-        # Note: board_view already pushed the move to its internal board,
-        # but we also record it in GameModel to create tree nodes/branches.
-        # Step back board_view's board before adding to model, so model can push it.
         self.board_view.board.pop()
         self.game_model.add_move(move)
         self.move_tree_view.rebuild_tree()
 
     def _on_game_model_changed(self, model: GameModel):
-        """Game model navigated or modified -> update board and chrome."""
         self._sync_view_to_game()
+        self._trigger_engine_analysis()
 
     def _sync_view_to_game(self):
         board = self.game_model.board
@@ -186,6 +208,27 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         self.board_view.set_board(board, last_move=last_move)
         self.status_bar.set_fen(board.fen())
         self.titlebar.set_breadcrumb(self.game_model.get_breadcrumb_title())
+
+    def _trigger_engine_analysis(self):
+        """Request live background Multi-PV analysis for current position."""
+        if self.engine_manager.is_available():
+            board = self.game_model.board
+            self.engine_manager.analyze_position(
+                board=board,
+                multipv=3,
+                max_depth=20,
+                on_update=self._on_engine_update
+            )
+
+    def _on_engine_update(self, snapshot):
+        self.engine_dock.update_snapshot(snapshot)
+        top = snapshot.top_line
+        if top:
+            self.eval_bar.set_evaluation(top.display_score, top.win_percentage)
+            n_fmt = f"{snapshot.nodes / 1_000_000:.1f}M" if snapshot.nodes >= 1_000_000 else f"{snapshot.nodes // 1000}k"
+            self.status_bar.engine_label.set_text(
+                f"Stockfish 18 · Depth: {snapshot.depth} · {n_fmt} nodes ({snapshot.nps // 1000}k n/s)"
+            )
 
     def _on_theme_changed(self, new_theme):
         self.status_bar.theme_label.set_text(f"Theme: {new_theme.id}")

@@ -17,6 +17,7 @@ from chess_reader.theme.asset_cache import PieceAssetCache
 from chess_reader.engine.uci_client import UCIEngineManager
 from chess_reader.engine.game_review import BatchGameReviewer
 from chess_reader.ui.board.board_view import ChessBoardView
+from chess_reader.ui.board.player_card import PlayerCard, compute_material_and_captures, extract_player_clocks
 from chess_reader.ui.notation.move_tree_view import MoveTreeView
 from chess_reader.ui.notation.chapter_nav_bar import ChapterNavBar
 from chess_reader.ui.dock.eval_bar import EvalBar
@@ -230,7 +231,7 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         self.board_panel.add_css_class("zed-panel")
         self.board_panel.set_hexpand(True)
 
-        # Board Row (EvalBar + ChessBoardView)
+        # Board Row (EvalBar + Board Center Column with Over/Under Player Cards)
         board_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         board_row.set_vexpand(True)
         board_row.set_hexpand(True)
@@ -238,14 +239,26 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         self.eval_bar = EvalBar()
         board_row.append(self.eval_bar)
 
+        board_center_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        board_center_box.set_vexpand(True)
+        board_center_box.set_hexpand(True)
+
+        self.top_player_card = PlayerCard(color=chess.BLACK)
+        board_center_box.append(self.top_player_card)
+
         self.board_view = ChessBoardView(
             theme=self.theme_manager.active_theme,
             asset_cache=self.asset_cache
         )
         self.board_view.set_size_request(400, 400)
         self.board_view.on_move_made = self._on_board_move_played
-        self.board_view.on_flipped = lambda flipped: self.eval_bar.set_flipped(flipped)
-        board_row.append(self.board_view)
+        self.board_view.on_flipped = self._on_board_flipped
+        board_center_box.append(self.board_view)
+
+        self.bottom_player_card = PlayerCard(color=chess.WHITE)
+        board_center_box.append(self.bottom_player_card)
+
+        board_row.append(board_center_box)
         self.board_panel.append(board_row)
 
         # Bottom Dock (Collapsible Multi-PV & CPL Graph)
@@ -358,6 +371,21 @@ class ChessReaderWindow(Adw.ApplicationWindow):
 
         # Board Mode Navigation & Actions
         if self.main_stack.get_visible_child_name() == "board":
+            # Direct Numeric NAG evaluation shortcuts (1-6)
+            if not is_ctrl and not is_alt:
+                nag_keys = {
+                    Gdk.KEY_1: 1,  # ! (Good move)
+                    Gdk.KEY_2: 2,  # ? (Mistake)
+                    Gdk.KEY_3: 3,  # !! (Brilliant)
+                    Gdk.KEY_4: 4,  # ?? (Blunder)
+                    Gdk.KEY_5: 5,  # !? (Interesting)
+                    Gdk.KEY_6: 6,  # ?! (Dubious)
+                }
+                if keyval in nag_keys:
+                    self.game_model.toggle_nag(self.game_model.current_node, nag_keys[keyval])
+                    self.move_tree_view.rebuild_tree()
+                    return True
+
             # Left Arrow -> Previous Move
             if keyval == Gdk.KEY_Left:
                 self.game_model.prev_move()
@@ -710,7 +738,10 @@ class ChessReaderWindow(Adw.ApplicationWindow):
 
     def _on_flip_clicked(self, btn):
         self.board_view.flip()
-        self.eval_bar.set_flipped(self.board_view.flipped)
+
+    def _on_board_flipped(self, flipped: bool):
+        self.eval_bar.set_flipped(flipped)
+        self._sync_player_cards()
 
     def _on_board_move_played(self, move: chess.Move):
         self.board_view.board.pop()
@@ -728,6 +759,70 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         self.board_view.set_board(board, last_move=last_move)
         self.status_bar.set_fen(board.fen())
         self.titlebar.set_breadcrumb(self.game_model.get_breadcrumb_title())
+        self._sync_player_cards()
+
+    def _sync_player_cards(self):
+        board = self.game_model.board
+        game = self.game_model.game
+        curr_node = self.game_model.current_node
+
+        white_name = game.headers.get("White", "White")
+        black_name = game.headers.get("Black", "Black")
+        white_elo = game.headers.get("WhiteElo", "")
+        black_elo = game.headers.get("BlackElo", "")
+        white_title = game.headers.get("WhiteTitle", "")
+        black_title = game.headers.get("BlackTitle", "")
+
+        mat_data = compute_material_and_captures(board)
+        white_clk, black_clk = extract_player_clocks(curr_node)
+
+        is_white_turn = (board.turn == chess.WHITE)
+        is_black_turn = (board.turn == chess.BLACK)
+
+        if not self.board_view.flipped:
+            # Standard perspective: Black at top, White at bottom
+            self.top_player_card.update_player(
+                color=chess.BLACK,
+                name=black_name,
+                elo=black_elo,
+                title=black_title,
+                clock=black_clk,
+                captured_pieces=mat_data["black_captured"],
+                material_diff=mat_data["black_diff"],
+                is_active_turn=is_black_turn
+            )
+            self.bottom_player_card.update_player(
+                color=chess.WHITE,
+                name=white_name,
+                elo=white_elo,
+                title=white_title,
+                clock=white_clk,
+                captured_pieces=mat_data["white_captured"],
+                material_diff=mat_data["white_diff"],
+                is_active_turn=is_white_turn
+            )
+        else:
+            # Flipped perspective: White at top, Black at bottom
+            self.top_player_card.update_player(
+                color=chess.WHITE,
+                name=white_name,
+                elo=white_elo,
+                title=white_title,
+                clock=white_clk,
+                captured_pieces=mat_data["white_captured"],
+                material_diff=mat_data["white_diff"],
+                is_active_turn=is_white_turn
+            )
+            self.bottom_player_card.update_player(
+                color=chess.BLACK,
+                name=black_name,
+                elo=black_elo,
+                title=black_title,
+                clock=black_clk,
+                captured_pieces=mat_data["black_captured"],
+                material_diff=mat_data["black_diff"],
+                is_active_turn=is_black_turn
+            )
 
     def _trigger_engine_analysis(self):
         if self.engine_manager.is_available() and self.engine_enabled:

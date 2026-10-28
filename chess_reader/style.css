@@ -770,3 +770,113 @@ window.zed-modal-window {
     background-color: rgba(97, 175, 239, 0.12);
     border: 1px solid rgba(97, 175, 239, 0.35);
 }
+
+/* ==========================================================================
+   Over/Under-board Player Cards (Symmetric Info & Clocks)
+   ========================================================================== */
+
+.player-card {
+    background-color: @zed_bg_panel;
+    border: 1px solid @zed_border_subtle;
+    border-radius: 6px;
+    padding: 4px 10px;
+    margin: 2px 4px;
+    transition: all 120ms ease;
+}
+
+.player-card-active {
+    border-color: rgba(97, 175, 239, 0.5);
+    background-color: rgba(30, 30, 36, 0.95);
+    box-shadow: 0 0 6px rgba(97, 175, 239, 0.15);
+}
+
+.player-color-icon {
+    font-size: 15px;
+    color: @zed_fg_secondary;
+}
+
+.player-title-badge {
+    font-family: "JetBrains Mono", "Adwaita Mono", monospace;
+    font-size: 10px;
+    font-weight: 800;
+    color: @zed_accent_yellow;
+    background-color: rgba(229, 192, 123, 0.15);
+    border: 1px solid rgba(229, 192, 123, 0.35);
+    border-radius: 3px;
+    padding: 1px 4px;
+}
+
+.player-name-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: @zed_fg_primary;
+}
+
+.player-elo-badge {
+    font-family: "JetBrains Mono", "Adwaita Mono", monospace;
+    font-size: 10px;
+    color: @zed_fg_muted;
+}
+
+.player-captured-label {
+    font-size: 13px;
+    color: @zed_fg_secondary;
+    letter-spacing: 1px;
+}
+
+.player-mat-badge {
+    font-family: "JetBrains Mono", "Adwaita Mono", monospace;
+    font-size: 10px;
+    font-weight: 700;
+    color: @zed_accent_green;
+    background-color: rgba(152, 195, 121, 0.15);
+    border: 1px solid rgba(152, 195, 121, 0.3);
+    border-radius: 3px;
+    padding: 1px 4px;
+}
+
+.player-clock-badge {
+    font-family: "JetBrains Mono", "Adwaita Mono", monospace;
+    font-size: 11px;
+    font-weight: 600;
+    color: @zed_fg_secondary;
+    background-color: @zed_bg_base;
+    border: 1px solid @zed_border_subtle;
+    border-radius: 4px;
+    padding: 2px 6px;
+}
+
+.player-clock-active {
+    color: @zed_fg_primary;
+    background-color: rgba(97, 175, 239, 0.12);
+    border-color: @zed_accent_blue;
+}
+
+/* ==========================================================================
+   Pawn Promotion Popover & Action Buttons
+   ========================================================================== */
+
+.promotion-popover-box {
+    background-color: @zed_bg_darkest;
+    border: 1px solid @zed_border_focus;
+    border-radius: 8px;
+    padding: 4px;
+}
+
+.promotion-piece-btn {
+    font-family: "JetBrains Mono", "Adwaita Mono", monospace;
+    font-size: 12px;
+    font-weight: 600;
+    color: @zed_fg_primary;
+    background-color: @zed_bg_panel;
+    border: 1px solid @zed_border_subtle;
+    border-radius: 6px;
+    padding: 6px 10px;
+    transition: all 100ms ease;
+}
+
+.promotion-piece-btn:hover {
+    background-color: @zed_bg_hover;
+    border-color: @zed_accent_blue;
+    color: @zed_accent_blue;
+}

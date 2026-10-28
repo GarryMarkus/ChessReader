@@ -195,6 +195,19 @@ class GameModel:
         node.nags.discard(nag)
         self._notify()
 
+    def toggle_nag(self, node: chess.pgn.GameNode, nag: int):
+        """Toggle an evaluation NAG on a node, clearing competing move-eval NAGs (1-6)."""
+        if node == self.game:
+            return  # Root game node has no move
+        if nag in node.nags:
+            node.nags.discard(nag)
+        else:
+            if nag in (1, 2, 3, 4, 5, 6):
+                for ev_nag in (1, 2, 3, 4, 5, 6):
+                    node.nags.discard(ev_nag)
+            node.nags.add(nag)
+        self._notify()
+
     def get_nags_display(self, node: chess.pgn.GameNode) -> List[str]:
         """Return list of human-readable NAG symbols (e.g. ['!', '±'])."""
         return [NAG_TO_SYMBOL[n] for n in sorted(node.nags) if n in NAG_TO_SYMBOL]

@@ -87,9 +87,15 @@ class ChessBoardView(Gtk.DrawingArea):
         # Annotations (Drawings)
         self.arrows: List[ArrowDrawing] = []
         self.highlights: Dict[chess.Square, SquareHighlight] = {}
-        self.active_drawing_color = "rgba(152, 195, 121, 0.85)"  # Green
+        self.active_arrow_color = "rgba(152, 195, 121, 0.85)"  # Green (default)
+        self.active_highlight_color = "rgba(152, 195, 121, 0.50)"
+        self.active_drawing_color = self.active_arrow_color
         self._right_drag_start: Optional[chess.Square] = None
         self._right_drag_current_square: Optional[chess.Square] = None
+
+        # Pawn Promotion Popover & State
+        self._pending_promotion: Optional[tuple[chess.Square, chess.Square]] = None
+        self._build_promotion_popover()
 
         # Callbacks
         self.on_move_made: Optional[Callable[[chess.Move], None]] = None
@@ -100,6 +106,111 @@ class ChessBoardView(Gtk.DrawingArea):
 
         # Attach Event Controllers
         self._setup_input_controllers()
+
+    def _build_promotion_popover(self):
+        """Construct interactive popover for underpromotion piece selection."""
+        self.promotion_popover = Gtk.Popover()
+        self.promotion_popover.set_parent(self)
+        self.promotion_popover.set_has_arrow(True)
+        self.promotion_popover.connect("closed", self._on_promotion_dismissed)
+
+        pop_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        pop_box.add_css_class("promotion-popover-box")
+        pop_box.set_margin_start(6)
+        pop_box.set_margin_end(6)
+        pop_box.set_margin_top(6)
+        pop_box.set_margin_bottom(6)
+
+        self.promo_buttons: Dict[chess.PieceType, Gtk.Button] = {}
+        for p_type, default_lbl in [
+            (chess.QUEEN, "♕ Queen (Q)"),
+            (chess.KNIGHT, "♘ Knight (N)"),
+            (chess.ROOK, "♖ Rook (R)"),
+            (chess.BISHOP, "♗ Bishop (B)")
+        ]:
+            btn = Gtk.Button(label=default_lbl)
+            btn.add_css_class("flat")
+            btn.add_css_class("promotion-piece-btn")
+            btn.connect("clicked", lambda _, pt=p_type: self._on_promotion_selected(pt))
+            self.promo_buttons[p_type] = btn
+            pop_box.append(btn)
+
+        self.promotion_popover.set_child(pop_box)
+
+    def _is_promotion_move(self, from_sq: chess.Square, to_sq: chess.Square) -> bool:
+        """Check whether moving from_sq to to_sq constitutes a pawn promotion."""
+        piece = self.board.piece_at(from_sq)
+        if not piece or piece.piece_type != chess.PAWN:
+            return False
+        if piece.color != self.board.turn:
+            return False
+        target_rank = 7 if piece.color == chess.WHITE else 0
+        if chess.square_rank(to_sq) != target_rank:
+            return False
+        return chess.Move(from_sq, to_sq, promotion=chess.QUEEN) in self.board.legal_moves
+
+    def _prompt_pawn_promotion(self, from_sq: chess.Square, to_sq: chess.Square):
+        """Display interactive promotion picker popover at the destination square."""
+        self._pending_promotion = (from_sq, to_sq)
+        x, y, w, h = self.geometry.square_to_rect(to_sq)
+        rect = Gdk.Rectangle()
+        rect.x = int(x)
+        rect.y = int(y)
+        rect.width = int(w)
+        rect.height = int(h)
+        self.promotion_popover.set_pointing_to(rect)
+
+        is_white = self.board.turn == chess.WHITE
+        glyphs = {
+            chess.QUEEN: ("♕" if is_white else "♛", "Queen (Q)"),
+            chess.KNIGHT: ("♘" if is_white else "♞", "Knight (N)"),
+            chess.ROOK: ("♖" if is_white else "♜", "Rook (R)"),
+            chess.BISHOP: ("♗" if is_white else "♝", "Bishop (B)")
+        }
+        for p_type, (glyph, label_text) in glyphs.items():
+            self.promo_buttons[p_type].set_label(f"{glyph} {label_text}")
+
+        if self.get_realized() and self.get_root() is not None:
+            self.promotion_popover.popup()
+
+    def _on_promotion_selected(self, piece_type: chess.PieceType):
+        """Execute selected promotion move."""
+        if not self._pending_promotion:
+            return
+        from_sq, to_sq = self._pending_promotion
+        self._pending_promotion = None
+        if self.get_realized() and self.get_root() is not None:
+            self.promotion_popover.popdown()
+        move = chess.Move(from_sq, to_sq, promotion=piece_type)
+        if move in self.board.legal_moves:
+            self._execute_move(move)
+
+    def _on_promotion_dismissed(self, popover):
+        """Handle promotion cancelled without piece selection."""
+        if self._pending_promotion:
+            self._pending_promotion = None
+            self.selected_square = None
+            self.legal_moves_for_selected.clear()
+            self.queue_draw()
+
+    def _get_drawing_color(self, state: Gdk.ModifierType) -> tuple[str, str]:
+        """Return (arrow_color, highlight_color) based on keyboard modifiers."""
+        is_shift = bool(state & Gdk.ModifierType.SHIFT_MASK)
+        is_ctrl = bool(state & Gdk.ModifierType.CONTROL_MASK)
+        is_alt = bool(state & Gdk.ModifierType.ALT_MASK)
+
+        if is_ctrl:
+            # Red (tactical / threat)
+            return ("rgba(224, 108, 117, 0.85)", "rgba(224, 108, 117, 0.50)")
+        elif is_shift:
+            # Yellow / Amber (caution / alternative)
+            return ("rgba(229, 192, 123, 0.85)", "rgba(229, 192, 123, 0.50)")
+        elif is_alt:
+            # Blue (strategic / positional)
+            return ("rgba(97, 175, 239, 0.85)", "rgba(97, 175, 239, 0.50)")
+        else:
+            # Green (standard / good)
+            return ("rgba(152, 195, 121, 0.85)", "rgba(152, 195, 121, 0.50)")
 
     def set_theme(self, theme: ChessReaderTheme, piece_set: Optional[object] = None):
         """Update active theme and piece set and queue repaint."""
@@ -172,6 +283,9 @@ class ChessBoardView(Gtk.DrawingArea):
 
         # Check if clicking on an already selected piece's legal destination
         if self.selected_square is not None and square != self.selected_square:
+            if self._is_promotion_move(self.selected_square, square):
+                self._prompt_pawn_promotion(self.selected_square, square)
+                return
             move = self._find_legal_move(self.selected_square, square)
             if move:
                 self._execute_move(move)
@@ -215,6 +329,9 @@ class ChessBoardView(Gtk.DrawingArea):
         self.drag_square = None
 
         if dest_square is not None and from_sq is not None and dest_square != from_sq:
+            if self._is_promotion_move(from_sq, dest_square):
+                self._prompt_pawn_promotion(from_sq, dest_square)
+                return
             move = self._find_legal_move(from_sq, dest_square)
             if move:
                 self._execute_move(move)
@@ -224,13 +341,18 @@ class ChessBoardView(Gtk.DrawingArea):
         self.queue_draw()
 
     def _on_right_drag_begin(self, gesture, start_x, start_y):
+        self._right_drag_start_x = start_x
+        self._right_drag_start_y = start_y
         sq = self.geometry.point_to_square(start_x, start_y)
         self._right_drag_start = sq
         self._right_drag_current_square = sq
+        state = gesture.get_current_event_state()
+        self.active_arrow_color, self.active_highlight_color = self._get_drawing_color(state)
+        self.active_drawing_color = self.active_arrow_color
 
     def _on_right_drag_update(self, gesture, offset_x, offset_y):
-        curr_x = self._drag_start_x + offset_x
-        curr_y = self._drag_start_y + offset_y
+        curr_x = getattr(self, "_right_drag_start_x", 0.0) + offset_x
+        curr_y = getattr(self, "_right_drag_start_y", 0.0) + offset_y
         sq = self.geometry.point_to_square(curr_x, curr_y)
         if sq != self._right_drag_current_square:
             self._right_drag_current_square = sq
@@ -252,11 +374,11 @@ class ChessBoardView(Gtk.DrawingArea):
             else:
                 self.highlights[from_sq] = SquareHighlight(
                     square=from_sq,
-                    color=self.theme.board.highlights.check if self.theme else "rgba(224, 108, 117, 0.65)"
+                    color=self.active_highlight_color
                 )
         else:
             # Dragged between two squares -> toggle arrow
-            arrow = ArrowDrawing(from_square=from_sq, to_square=to_sq, color=self.active_drawing_color)
+            arrow = ArrowDrawing(from_square=from_sq, to_square=to_sq, color=self.active_arrow_color)
             if arrow in self.arrows:
                 self.arrows.remove(arrow)
             else:
@@ -266,6 +388,26 @@ class ChessBoardView(Gtk.DrawingArea):
 
     def _on_key_pressed(self, controller, keyval, keycode, state):
         keyname = Gdk.keyval_name(keyval)
+        if self._pending_promotion:
+            if keyname in ("q", "Q"):
+                self._on_promotion_selected(chess.QUEEN)
+                return True
+            elif keyname in ("n", "N"):
+                self._on_promotion_selected(chess.KNIGHT)
+                return True
+            elif keyname in ("r", "R"):
+                self._on_promotion_selected(chess.ROOK)
+                return True
+            elif keyname in ("b", "B"):
+                self._on_promotion_selected(chess.BISHOP)
+                return True
+            elif keyname in ("Escape",):
+                if self.get_realized() and self.get_root() is not None:
+                    self.promotion_popover.popdown()
+                else:
+                    self._on_promotion_dismissed(None)
+                return True
+
         if keyname in ("f", "F"):
             self.flip()
             return True

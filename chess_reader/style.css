@@ -185,9 +185,41 @@ paned.zed-workspace > separator {
    Engine Dock, Eval Bar & CPL Graph Styles (Zed Aesthetic)
    ========================================================================== */
 
+.eval-bar-container {
+    margin-right: 4px;
+}
+
 .eval-bar {
-    margin-right: 6px;
     border-radius: 3px;
+}
+
+.eval-score-label {
+    font-family: "JetBrains Mono", "Adwaita Mono", monospace;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 4px;
+    border-radius: 4px;
+    background-color: @zed_bg_darkest;
+    border: 1px solid @zed_border_subtle;
+    margin-top: 4px;
+    text-align: center;
+}
+
+.eval-score-pos {
+    color: @zed_fg_primary;
+    border-color: rgba(97, 175, 239, 0.4);
+    background-color: rgba(97, 175, 239, 0.08);
+}
+
+.eval-score-neg {
+    color: @zed_accent_red;
+    border-color: rgba(224, 108, 117, 0.4);
+    background-color: rgba(224, 108, 117, 0.08);
+}
+
+.eval-score-even {
+    color: @zed_fg_secondary;
+    border-color: @zed_border_subtle;
 }
 
 .engine-dock {

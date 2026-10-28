@@ -8,6 +8,11 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, Gdk
 
+import chess
+from chess_reader.theme.loader import ThemeManager
+from chess_reader.theme.asset_cache import PieceAssetCache
+from chess_reader.ui.board.board_view import ChessBoardView
+
 
 class ZedTitlebar(Gtk.Box):
     """Unified CSD headerbar housing breadcrumbs, controls, and window actions."""
@@ -26,10 +31,15 @@ class ZedTitlebar(Gtk.Box):
         self.breadcrumb_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         self.breadcrumb_box.add_css_class("breadcrumb-box")
 
-        self.set_breadcrumb(["Database", "Round 1", "Carlsen vs. Caruana (1-0)"])
+        self.set_breadcrumb(["Live Analysis", "Starting Position"])
         self.header.pack_start(self.breadcrumb_box)
 
         # Right: Quick action buttons
+        self.flip_btn = Gtk.Button(label="Flip (F)")
+        self.flip_btn.set_tooltip_text("Flip Board Perspective (F)")
+        self.flip_btn.add_css_class("flat")
+        self.header.pack_end(self.flip_btn)
+
         self.palette_btn = Gtk.Button(label="⌘K")
         self.palette_btn.set_tooltip_text("Command Palette (Ctrl+K)")
         self.palette_btn.add_css_class("flat")
@@ -72,16 +82,25 @@ class StatusBar(Gtk.Box):
         self.append(spacer)
 
         # FEN Quick Copy Button
-        self.fen_btn = Gtk.Button(label="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR")
-        self.fen_btn.set_tooltip_text("Click to copy FEN")
+        self.fen_btn = Gtk.Button(label="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+        self.fen_btn.set_tooltip_text("Click to copy FEN to clipboard")
         self.fen_btn.add_css_class("flat")
         self.fen_btn.add_css_class("zed-status-interactive")
+        self.fen_btn.connect("clicked", self._on_fen_clicked)
         self.append(self.fen_btn)
 
         # Active Theme Profile
         self.theme_label = Gtk.Label(label="Theme: zed-dark")
         self.theme_label.add_css_class("zed-status-item")
         self.append(self.theme_label)
+
+    def set_fen(self, fen: str):
+        """Update FEN button text."""
+        self.fen_btn.set_label(fen)
+
+    def _on_fen_clicked(self, btn):
+        clipboard = Gdk.Display.get_default().get_clipboard()
+        clipboard.set(self.fen_btn.get_label())
 
 
 class ChessReaderWindow(Adw.ApplicationWindow):
@@ -92,6 +111,10 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         self.set_title("ChessReader")
         self.set_default_size(1280, 840)
         self.add_css_class("chess-reader-window")
+
+        # Managers
+        self.theme_manager = ThemeManager()
+        self.asset_cache = PieceAssetCache()
 
         # Libadwaita ToolbarView handles CSD chrome and status bars seamlessly
         self.toolbar_view = Adw.ToolbarView()
@@ -107,13 +130,17 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         self.workspace.set_vexpand(True)
         self.toolbar_view.set_content(self.workspace)
 
-        # Left / Center: Chess Board Container
+        # Left / Center: Interactive Chess Board
         self.board_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.board_panel.add_css_class("zed-panel")
         self.board_panel.set_hexpand(True)
-        self.board_placeholder = Gtk.Label(label="Chess Board (Cairo/GSK Canvas)")
-        self.board_placeholder.set_vexpand(True)
-        self.board_panel.append(self.board_placeholder)
+
+        self.board_view = ChessBoardView(
+            theme=self.theme_manager.active_theme,
+            asset_cache=self.asset_cache
+        )
+        self.board_view.on_move_made = self._on_board_move_made
+        self.board_panel.append(self.board_view)
         self.workspace.set_start_child(self.board_panel)
 
         # Right: Move Notation Tree & Inspector
@@ -128,3 +155,15 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         # 3. Status Bar (Bottom Bar)
         self.status_bar = StatusBar()
         self.toolbar_view.add_bottom_bar(self.status_bar)
+
+        # Connect actions
+        self.titlebar.flip_btn.connect("clicked", lambda _: self.board_view.flip())
+        self.theme_manager.add_theme_listener(self._on_theme_changed)
+
+    def _on_board_move_made(self, move: chess.Move):
+        fen = self.board_view.board.fen()
+        self.status_bar.set_fen(fen)
+
+    def _on_theme_changed(self, new_theme):
+        self.status_bar.theme_label.set_text(f"Theme: {new_theme.id}")
+        self.board_view.set_theme(new_theme)

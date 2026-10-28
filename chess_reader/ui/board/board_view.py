@@ -318,6 +318,28 @@ class ChessBoardView(Gtk.DrawingArea):
 
     def _draw_grid_squares(self, ctx: cairo.Context):
         sq_size = self.geometry.square_size
+        scale_factor = self.get_scale_factor()
+        board_sz = int(self.geometry.board_size)
+
+        # 1. Full-board backdrop image rendering
+        if self.theme and self.theme.board.type == "backdrop":
+            backdrop_surf = self.asset_cache.get_board_backdrop_surface(self.theme, board_sz, scale_factor)
+            if backdrop_surf:
+                ctx.save()
+                bx = self.geometry.offset_x
+                by = self.geometry.offset_y
+                if self.flipped:
+                    cx = bx + (board_sz / 2.0)
+                    cy = by + (board_sz / 2.0)
+                    ctx.translate(cx, cy)
+                    ctx.rotate(3.141592653589793)
+                    ctx.translate(-cx, -cy)
+                ctx.set_source_surface(backdrop_surf, bx, by)
+                ctx.paint()
+                ctx.restore()
+                return
+
+        # 2. Standard solid/dual-tile square grid rendering
         light_color = parse_color(self.theme.board.light_square if self.theme else "#2d3139")
         dark_color = parse_color(self.theme.board.dark_square if self.theme else "#1e2227")
 

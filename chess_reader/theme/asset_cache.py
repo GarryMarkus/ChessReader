@@ -52,6 +52,44 @@ class PieceAssetCache:
         self._surface_cache[cache_key] = new_surface
         return new_surface
 
+    def get_board_backdrop_surface(
+        self,
+        theme: Optional[ChessReaderTheme],
+        board_size: int,
+        scale_factor: int = 1
+    ) -> Optional[cairo.ImageSurface]:
+        """Retrieve or scale a cached high-DPI full board backdrop ImageSurface."""
+        if not theme or not theme.board or theme.board.type != "backdrop":
+            return None
+        if not theme.board.backdrop_image:
+            return None
+
+        pixel_size = max(1, int(board_size * scale_factor))
+        cache_key = ("backdrop", theme.id, pixel_size, pixel_size)
+        surface = self._surface_cache.get(cache_key)
+        if surface is not None:
+            return surface
+
+        asset_path = theme.resolve_asset_path(theme.board.backdrop_image)
+        if not os.path.exists(asset_path):
+            return None
+
+        raw = self._raw_png_cache.get(asset_path)
+        if raw is None:
+            raw = cairo.ImageSurface.create_from_png(asset_path)
+            self._raw_png_cache[asset_path] = raw
+
+        target = cairo.ImageSurface(cairo.FORMAT_ARGB32, pixel_size, pixel_size)
+        ctx = cairo.Context(target)
+        ctx.scale(pixel_size / raw.get_width(), pixel_size / raw.get_height())
+        ctx.set_source_surface(raw, 0, 0)
+        pattern = ctx.get_source()
+        pattern.set_filter(cairo.FILTER_BEST)
+        ctx.paint()
+
+        self._surface_cache[cache_key] = target
+        return target
+
     def prewarm(self, theme: Optional[ChessReaderTheme], square_size: int, scale_factor: int = 1):
         """Pre-render and cache all 12 pieces for the specified dimensions."""
         for symbol in AssetResolver.PIECE_SYMBOLS:

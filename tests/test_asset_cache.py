@@ -33,6 +33,7 @@ def test_asset_cache_renders_and_caches_surfaces():
     surf_hidpi = cache.get_piece_surface(theme, "wK", square_size=80, scale_factor=2)
     assert surf_hidpi.get_width() == 160
     assert surf_hidpi.get_height() == 160
+    assert surf_hidpi.get_device_scale() == (2.0, 2.0)
     assert cache.cached_count == 2
 
 

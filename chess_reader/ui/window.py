@@ -140,6 +140,7 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         self.workspace = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
         self.workspace.add_css_class("zed-workspace")
         self.workspace.set_vexpand(True)
+        self.workspace.set_position(750)
         self.toolbar_view.set_content(self.workspace)
 
         # Left / Center: Interactive Chess Board + Eval Bar + Analysis Dock
@@ -159,6 +160,7 @@ class ChessReaderWindow(Adw.ApplicationWindow):
             theme=self.theme_manager.active_theme,
             asset_cache=self.asset_cache
         )
+        self.board_view.set_size_request(400, 400)
         self.board_view.on_move_made = self._on_board_move_played
         board_row.append(self.board_view)
         self.board_panel.append(board_row)
@@ -429,4 +431,5 @@ class ChessReaderWindow(Adw.ApplicationWindow):
 
     def _on_theme_changed(self, new_theme):
         self.status_bar.theme_label.set_text(f"Theme: {new_theme.id}")
+        self.asset_cache.clear()
         self.board_view.set_theme(new_theme)

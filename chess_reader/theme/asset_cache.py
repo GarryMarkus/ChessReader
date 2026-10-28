@@ -40,7 +40,7 @@ class PieceAssetCache:
         """
         pixel_size = max(1, int(square_size * scale_factor))
         theme_id = theme.id if theme else "default"
-        cache_key = (theme_id, symbol, pixel_size, pixel_size)
+        cache_key = (theme_id, symbol, pixel_size, pixel_size, scale_factor)
 
         surface = self._surface_cache.get(cache_key)
         if surface is not None:
@@ -49,6 +49,7 @@ class PieceAssetCache:
         # Resolve asset file path
         asset_path = AssetResolver.resolve_piece_path(theme, symbol)
         new_surface = self._render_asset_to_surface(asset_path, symbol, pixel_size, pixel_size)
+        new_surface.set_device_scale(float(scale_factor), float(scale_factor))
         self._surface_cache[cache_key] = new_surface
         return new_surface
 
@@ -65,7 +66,7 @@ class PieceAssetCache:
             return None
 
         pixel_size = max(1, int(board_size * scale_factor))
-        cache_key = ("backdrop", theme.id, pixel_size, pixel_size)
+        cache_key = ("backdrop", theme.id, pixel_size, pixel_size, scale_factor)
         surface = self._surface_cache.get(cache_key)
         if surface is not None:
             return surface
@@ -86,6 +87,8 @@ class PieceAssetCache:
         pattern = ctx.get_source()
         pattern.set_filter(cairo.FILTER_BEST)
         ctx.paint()
+
+        target.set_device_scale(float(scale_factor), float(scale_factor))
 
         self._surface_cache[cache_key] = target
         return target

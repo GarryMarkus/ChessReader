@@ -13,12 +13,13 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Pango', '1.0')
 gi.require_version('PangoCairo', '1.0')
-from gi.repository import Gtk, Gdk, Pango, PangoCairo
+from gi.repository import Gtk, Gdk, GLib, Pango, PangoCairo
 
 from chess_reader.theme.schema import ChessReaderTheme
 from chess_reader.theme.asset_cache import PieceAssetCache
 from chess_reader.ui.board.geometry import BoardGeometry
 from chess_reader.ui.board.drawings import ArrowDrawing, SquareHighlight, draw_cairo_arrow
+from chess_reader.ui.board.animation import PieceAnimation, detect_move_animation
 
 
 def parse_color(color_str: str) -> tuple[float, float, float, float]:
@@ -96,6 +97,13 @@ class ChessBoardView(Gtk.DrawingArea):
         # Pawn Promotion Popover & State
         self._pending_promotion: Optional[tuple[chess.Square, chess.Square]] = None
         self._build_promotion_popover()
+
+        # Piece Animation State
+        self.animations_enabled: bool = True
+        self.animation_duration_ms: int = 150
+        self.active_animation: Optional[PieceAnimation] = None
+        self._tick_id: Optional[int] = None
+        self._skip_next_animation: bool = False
 
         # Callbacks
         self.on_move_made: Optional[Callable[[chess.Move], None]] = None
@@ -218,8 +226,27 @@ class ChessBoardView(Gtk.DrawingArea):
         self.piece_set = piece_set
         self.queue_draw()
 
-    def set_board(self, board: chess.Board, last_move: Optional[chess.Move] = None):
-        """Update active board position and redraw."""
+    def set_board(self, board: chess.Board, last_move: Optional[chess.Move] = None, animate: bool = True):
+        """Update active board position with optional smooth piece animation."""
+        if self.animations_enabled and animate and not self._skip_next_animation and self.get_realized():
+            now_us = GLib.get_monotonic_time()
+            anim = detect_move_animation(
+                old_board=self.board,
+                new_board=board,
+                last_move=last_move,
+                start_time_us=now_us,
+                duration_us=self.animation_duration_ms * 1000
+            )
+            if anim is not None:
+                self.active_animation = anim
+                if self._tick_id is None:
+                    self._tick_id = self.add_tick_callback(self._on_animation_tick)
+            else:
+                self.active_animation = None
+        else:
+            self.active_animation = None
+
+        self._skip_next_animation = False
         self.board = board
         self.last_move = last_move
         self.selected_square = None
@@ -228,8 +255,28 @@ class ChessBoardView(Gtk.DrawingArea):
         self.drag_square = None
         self.queue_draw()
 
+    def _on_animation_tick(self, widget, frame_clock):
+        """Frame callback synchronized to monitor refresh rate (60/120/144 FPS)."""
+        if not self.active_animation:
+            self._tick_id = None
+            return False
+
+        now_us = frame_clock.get_frame_time() if (frame_clock and frame_clock.get_frame_time() > 0) else GLib.get_monotonic_time()
+        if self.active_animation.is_finished(now_us):
+            self.active_animation = None
+            self._tick_id = None
+            self.queue_draw()
+            return False
+
+        self.queue_draw()
+        return True
+
     def flip(self):
         """Toggle board perspective between White and Black."""
+        self.active_animation = None
+        if self._tick_id is not None:
+            self.remove_tick_callback(self._tick_id)
+            self._tick_id = None
         self.flipped = not self.flipped
         self.geometry.flipped = self.flipped
         self.queue_draw()
@@ -330,10 +377,12 @@ class ChessBoardView(Gtk.DrawingArea):
 
         if dest_square is not None and from_sq is not None and dest_square != from_sq:
             if self._is_promotion_move(from_sq, dest_square):
+                self._skip_next_animation = True
                 self._prompt_pawn_promotion(from_sq, dest_square)
                 return
             move = self._find_legal_move(from_sq, dest_square)
             if move:
+                self._skip_next_animation = True
                 self._execute_move(move)
                 return
 
@@ -472,13 +521,16 @@ class ChessBoardView(Gtk.DrawingArea):
         # 6. Static Pieces
         self._draw_pieces(ctx)
 
-        # 7. Legal Move Indicators
+        # 7. Animated Pieces Layer
+        self._draw_animation_layer(ctx)
+
+        # 8. Legal Move Indicators
         self._draw_legal_move_indicators(ctx)
 
-        # 8. Interactive Drawings (Arrows & Live Drag)
+        # 9. Interactive Drawings (Arrows & Live Drag)
         self._draw_annotations(ctx)
 
-        # 9. Floating Dragged Piece
+        # 10. Floating Dragged Piece
         if self.is_dragging and self.drag_square is not None:
             self._draw_dragged_piece(ctx)
 
@@ -656,9 +708,17 @@ class ChessBoardView(Gtk.DrawingArea):
         sq_size = int(self.geometry.square_size)
         scale_factor = self.get_scale_factor()
 
+        suppress_squares = set()
+        if self.is_dragging and self.drag_square is not None:
+            suppress_squares.add(self.drag_square)
+        if self.active_animation is not None:
+            suppress_squares.add(self.active_animation.target_square)
+            if self.active_animation.secondary_target_square is not None:
+                suppress_squares.add(self.active_animation.secondary_target_square)
+
         for sq in range(64):
-            if self.is_dragging and sq == self.drag_square:
-                continue  # Drawn in floating layer
+            if sq in suppress_squares:
+                continue
 
             piece = self.board.piece_at(sq)
             if piece:
@@ -672,6 +732,68 @@ class ChessBoardView(Gtk.DrawingArea):
                 ctx.set_source_surface(surf, x, y)
                 ctx.paint()
                 ctx.restore()
+
+    def _draw_animation_layer(self, ctx: cairo.Context):
+        if not self.active_animation:
+            return
+
+        now_us = GLib.get_monotonic_time()
+        p = self.active_animation.get_progress(now_us)
+        sq_size = int(self.geometry.square_size)
+        scale_factor = self.get_scale_factor()
+
+        # 1. Fade captured piece (if present)
+        if self.active_animation.captured_piece_symbol and self.active_animation.captured_square is not None:
+            cap_surf = self.asset_cache.get_piece_surface(
+                self.theme, self.active_animation.captured_piece_symbol, sq_size, scale_factor, piece_set=self.piece_set
+            )
+            cap_x, cap_y, _, _ = self.geometry.square_to_rect(self.active_animation.captured_square)
+            alpha = max(0.0, min(1.0, (1.0 - p) if not self.active_animation.is_reverse else p))
+            if alpha > 0.01:
+                ctx.save()
+                ctx.set_source_surface(cap_surf, cap_x, cap_y)
+                ctx.paint_with_alpha(alpha)
+                ctx.restore()
+
+        # 2. Moving secondary piece (castling rook)
+        if (
+            self.active_animation.secondary_piece_symbol
+            and self.active_animation.secondary_from_square is not None
+            and self.active_animation.secondary_to_square is not None
+        ):
+            r_surf = self.asset_cache.get_piece_surface(
+                self.theme, self.active_animation.secondary_piece_symbol, sq_size, scale_factor, piece_set=self.piece_set
+            )
+            rx1, ry1, _, _ = self.geometry.square_to_rect(self.active_animation.secondary_from_square)
+            rx2, ry2, _, _ = self.geometry.square_to_rect(self.active_animation.secondary_to_square)
+            r_curr_x = rx1 + (rx2 - rx1) * p
+            r_curr_y = ry1 + (ry2 - ry1) * p
+
+            ctx.save()
+            ctx.set_source_surface(r_surf, r_curr_x, r_curr_y)
+            ctx.paint()
+            ctx.restore()
+
+        # 3. Moving primary piece
+        surf = self.asset_cache.get_piece_surface(
+            self.theme, self.active_animation.piece_symbol, sq_size, scale_factor, piece_set=self.piece_set
+        )
+        x1, y1, _, _ = self.geometry.square_to_rect(self.active_animation.from_square)
+        x2, y2, _, _ = self.geometry.square_to_rect(self.active_animation.to_square)
+        curr_x = x1 + (x2 - x1) * p
+        curr_y = y1 + (y2 - y1) * p
+
+        ctx.save()
+        # Subtle drop shadow for floating in-flight piece
+        shadow_lift = 3.0 * (1.0 - abs(p - 0.5) * 1.5) if p < 0.9 else 0.0
+        if shadow_lift > 0.5:
+            ctx.set_source_rgba(0, 0, 0, 0.20)
+            ctx.rectangle(curr_x + shadow_lift, curr_y + shadow_lift * 1.5, sq_size, sq_size)
+            ctx.fill()
+
+        ctx.set_source_surface(surf, curr_x, curr_y)
+        ctx.paint()
+        ctx.restore()
 
     def _draw_legal_move_indicators(self, ctx: cairo.Context):
         if not self.selected_square or not self.legal_moves_for_selected:

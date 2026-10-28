@@ -96,3 +96,87 @@ paned.zed-workspace > separator {
     background-color: @zed_bg_hover;
     border-radius: 3px;
 }
+
+/* ==========================================================================
+   Move Tree & Code-Editor Notation View Styles (Zed Aesthetic)
+   ========================================================================== */
+
+.move-tree-panel {
+    background-color: @zed_bg_panel;
+}
+
+.notation-toolbar {
+    background-color: @zed_bg_darkest;
+    border-bottom: 1px solid @zed_border_subtle;
+    padding: 4px 8px;
+}
+
+.notation-scroll {
+    background-color: @zed_bg_panel;
+    padding: 8px 12px;
+}
+
+.move-tree-box {
+    font-family: "JetBrains Mono", "Adwaita Mono", monospace;
+    font-size: 12px;
+}
+
+.variation-box {
+    margin-left: 14px;
+    border-left: 1px solid @zed_border_subtle;
+    padding-left: 8px;
+    margin-top: 2px;
+    margin-bottom: 2px;
+}
+
+.move-row {
+    margin: 1px 0;
+}
+
+.move-token {
+    padding: 2px 5px;
+    border-radius: 3px;
+    color: @zed_fg_primary;
+    background: transparent;
+    border: 1px solid transparent;
+}
+
+.move-token:hover {
+    background-color: @zed_bg_hover;
+}
+
+.move-token.active-move {
+    background-color: @zed_bg_active;
+    color: @zed_accent_blue;
+    border: 1px solid @zed_border_focus;
+    font-weight: 700;
+}
+
+.move-number {
+    color: @zed_fg_muted;
+    font-size: 11px;
+    margin-right: 2px;
+}
+
+.nag-badge {
+    color: @zed_accent_yellow;
+    font-weight: bold;
+    font-size: 11px;
+    margin-left: 1px;
+}
+
+.comment-block {
+    color: @zed_fg_muted;
+    font-style: italic;
+    font-size: 11px;
+    margin: 2px 0 4px 4px;
+}
+
+.meta-pill {
+    background-color: @zed_bg_hover;
+    color: @zed_fg_secondary;
+    font-size: 10px;
+    padding: 1px 4px;
+    border-radius: 3px;
+    margin-left: 4px;
+}

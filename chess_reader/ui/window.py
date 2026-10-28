@@ -9,9 +9,11 @@ gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, Gdk
 
 import chess
+from chess_reader.core.game_model import GameModel
 from chess_reader.theme.loader import ThemeManager
 from chess_reader.theme.asset_cache import PieceAssetCache
 from chess_reader.ui.board.board_view import ChessBoardView
+from chess_reader.ui.notation.move_tree_view import MoveTreeView
 
 
 class ZedTitlebar(Gtk.Box):
@@ -112,9 +114,10 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         self.set_default_size(1280, 840)
         self.add_css_class("chess-reader-window")
 
-        # Managers
+        # Managers & Domain State
         self.theme_manager = ThemeManager()
         self.asset_cache = PieceAssetCache()
+        self.game_model = GameModel()
 
         # Libadwaita ToolbarView handles CSD chrome and status bars seamlessly
         self.toolbar_view = Adw.ToolbarView()
@@ -139,30 +142,50 @@ class ChessReaderWindow(Adw.ApplicationWindow):
             theme=self.theme_manager.active_theme,
             asset_cache=self.asset_cache
         )
-        self.board_view.on_move_made = self._on_board_move_made
+        self.board_view.on_move_made = self._on_board_move_played
         self.board_panel.append(self.board_view)
         self.workspace.set_start_child(self.board_panel)
 
-        # Right: Move Notation Tree & Inspector
+        # Right: Move Notation Tree & Variations Panel
         self.notation_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.notation_panel.add_css_class("zed-sidebar")
         self.notation_panel.set_size_request(380, -1)
-        self.tree_placeholder = Gtk.Label(label="Move Notation Tree & Variations")
-        self.tree_placeholder.set_vexpand(True)
-        self.notation_panel.append(self.tree_placeholder)
+
+        self.move_tree_view = MoveTreeView(game_model=self.game_model)
+        self.notation_panel.append(self.move_tree_view)
         self.workspace.set_end_child(self.notation_panel)
 
         # 3. Status Bar (Bottom Bar)
         self.status_bar = StatusBar()
         self.toolbar_view.add_bottom_bar(self.status_bar)
 
-        # Connect actions
+        # Connect actions & listeners
         self.titlebar.flip_btn.connect("clicked", lambda _: self.board_view.flip())
         self.theme_manager.add_theme_listener(self._on_theme_changed)
+        self.game_model.add_listener(self._on_game_model_changed)
 
-    def _on_board_move_made(self, move: chess.Move):
-        fen = self.board_view.board.fen()
-        self.status_bar.set_fen(fen)
+        # Initial synchronization
+        self._sync_view_to_game()
+
+    def _on_board_move_played(self, move: chess.Move):
+        """User played a move on the board -> record in PGN variation tree."""
+        # Note: board_view already pushed the move to its internal board,
+        # but we also record it in GameModel to create tree nodes/branches.
+        # Step back board_view's board before adding to model, so model can push it.
+        self.board_view.board.pop()
+        self.game_model.add_move(move)
+        self.move_tree_view.rebuild_tree()
+
+    def _on_game_model_changed(self, model: GameModel):
+        """Game model navigated or modified -> update board and chrome."""
+        self._sync_view_to_game()
+
+    def _sync_view_to_game(self):
+        board = self.game_model.board
+        last_move = self.game_model.current_node.move
+        self.board_view.set_board(board, last_move=last_move)
+        self.status_bar.set_fen(board.fen())
+        self.titlebar.set_breadcrumb(self.game_model.get_breadcrumb_title())
 
     def _on_theme_changed(self, new_theme):
         self.status_bar.theme_label.set_text(f"Theme: {new_theme.id}")

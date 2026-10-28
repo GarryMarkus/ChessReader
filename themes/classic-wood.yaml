@@ -1,0 +1,43 @@
+id: "classic-wood"
+name: "Classic Wood"
+author: "Antigravity Systems"
+version: "1.0.0"
+description: "Traditional warm wood tones for timeless tournament reading."
+
+board:
+  type: "solid"
+  light_square: "#b88b4a"
+  dark_square: "#693f18"
+  border_color: "#3b220d"
+  coordinates:
+    show: true
+    placement: "inside"
+    font_family: "JetBrains Mono"
+    font_size: 11
+    light_color: "#f5e6d3"
+    dark_color: "#dfba8c"
+  highlights:
+    selected_square: "rgba(100, 200, 255, 0.4)"
+    last_move: "rgba(255, 230, 100, 0.3)"
+    legal_move_dot: "rgba(240, 240, 240, 0.5)"
+    check: "rgba(255, 50, 50, 0.7)"
+    hover: "rgba(255, 255, 255, 0.08)"
+  drawings:
+    arrow_primary: "rgba(40, 180, 100, 0.85)"
+    arrow_secondary: "rgba(250, 180, 30, 0.85)"
+    arrow_tactical: "rgba(230, 50, 50, 0.85)"
+    arrow_alternate: "rgba(50, 130, 240, 0.85)"
+
+pieces:
+  wP: "../assets/pieces/standard/wP.png"
+  wN: "../assets/pieces/standard/wN.png"
+  wB: "../assets/pieces/standard/wB.png"
+  wR: "../assets/pieces/standard/wR.png"
+  wQ: "../assets/pieces/standard/wQ.png"
+  wK: "../assets/pieces/standard/wK.png"
+  bP: "../assets/pieces/standard/bP.png"
+  bN: "../assets/pieces/standard/bN.png"
+  bB: "../assets/pieces/standard/bB.png"
+  bR: "../assets/pieces/standard/bR.png"
+  bQ: "../assets/pieces/standard/bQ.png"
+  bK: "../assets/pieces/standard/bK.png"

@@ -1,0 +1,43 @@
+id: "zed-dark"
+name: "Zed Charcoal"
+author: "Antigravity Systems"
+version: "1.0.0"
+description: "Ultra-clean high-contrast dark theme matching the Zed code editor."
+
+board:
+  type: "solid"
+  light_square: "#2d3139"
+  dark_square: "#1e2227"
+  border_color: "#23272e"
+  coordinates:
+    show: true
+    placement: "inside"
+    font_family: "JetBrains Mono"
+    font_size: 11
+    light_color: "#5c6370"
+    dark_color: "#4b5263"
+  highlights:
+    selected_square: "rgba(97, 175, 239, 0.35)"
+    last_move: "rgba(229, 192, 123, 0.22)"
+    legal_move_dot: "rgba(171, 178, 191, 0.45)"
+    check: "rgba(224, 108, 117, 0.65)"
+    hover: "rgba(255, 255, 255, 0.05)"
+  drawings:
+    arrow_primary: "rgba(152, 195, 121, 0.85)"
+    arrow_secondary: "rgba(229, 192, 123, 0.85)"
+    arrow_tactical: "rgba(224, 108, 117, 0.85)"
+    arrow_alternate: "rgba(97, 175, 239, 0.85)"
+
+pieces:
+  wP: "../assets/pieces/standard/wP.png"
+  wN: "../assets/pieces/standard/wN.png"
+  wB: "../assets/pieces/standard/wB.png"
+  wR: "../assets/pieces/standard/wR.png"
+  wQ: "../assets/pieces/standard/wQ.png"
+  wK: "../assets/pieces/standard/wK.png"
+  bP: "../assets/pieces/standard/bP.png"
+  bN: "../assets/pieces/standard/bN.png"
+  bB: "../assets/pieces/standard/bB.png"
+  bR: "../assets/pieces/standard/bR.png"
+  bQ: "../assets/pieces/standard/bQ.png"
+  bK: "../assets/pieces/standard/bK.png"

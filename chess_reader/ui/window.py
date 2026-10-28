@@ -1,6 +1,7 @@
 """
 Main Application Window with Zed Design Language Chrome.
-Unified Client-Side Decoration (CSD) headerbar, split-pane workspace, and status bar.
+Unified Client-Side Decoration (CSD) headerbar, split-pane workspace, status bar,
+and integrated Zed Command Palette and FEN Setup modal.
 """
 
 import gi
@@ -13,10 +14,13 @@ from chess_reader.core.game_model import GameModel
 from chess_reader.theme.loader import ThemeManager
 from chess_reader.theme.asset_cache import PieceAssetCache
 from chess_reader.engine.uci_client import UCIEngineManager
+from chess_reader.engine.game_review import BatchGameReviewer
 from chess_reader.ui.board.board_view import ChessBoardView
 from chess_reader.ui.notation.move_tree_view import MoveTreeView
 from chess_reader.ui.dock.eval_bar import EvalBar
 from chess_reader.ui.dock.engine_dock import EngineDock
+from chess_reader.ui.palette.command_palette import CommandPalette, CommandItem
+from chess_reader.ui.modals.fen_dialog import FENSetupDialog
 
 
 class ZedTitlebar(Gtk.Box):
@@ -46,7 +50,7 @@ class ZedTitlebar(Gtk.Box):
         self.header.pack_end(self.flip_btn)
 
         self.palette_btn = Gtk.Button(label="⌘K")
-        self.palette_btn.set_tooltip_text("Command Palette (Ctrl+K)")
+        self.palette_btn.set_tooltip_text("Command Palette (Ctrl+K / Ctrl+P)")
         self.palette_btn.add_css_class("flat")
         self.header.pack_end(self.palette_btn)
 
@@ -122,6 +126,7 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         self.asset_cache = PieceAssetCache()
         self.game_model = GameModel()
         self.engine_manager = UCIEngineManager()
+        self.engine_enabled = True
 
         # Libadwaita ToolbarView handles CSD chrome and status bars seamlessly
         self.toolbar_view = Adw.ToolbarView()
@@ -160,6 +165,7 @@ class ChessReaderWindow(Adw.ApplicationWindow):
 
         # Bottom Dock (Collapsible Multi-PV & CPL Graph)
         self.engine_dock = EngineDock()
+        self.engine_dock.cpl_graph.on_ply_selected = self._on_graph_ply_selected
         self.board_panel.append(self.engine_dock)
 
         self.workspace.set_start_child(self.board_panel)
@@ -179,8 +185,12 @@ class ChessReaderWindow(Adw.ApplicationWindow):
 
         # Connect actions & listeners
         self.titlebar.flip_btn.connect("clicked", self._on_flip_clicked)
+        self.titlebar.palette_btn.connect("clicked", lambda _: self.open_command_palette())
         self.theme_manager.add_theme_listener(self._on_theme_changed)
         self.game_model.add_listener(self._on_game_model_changed)
+
+        # Attach Global Key Controller for shortcuts (Ctrl+K, Ctrl+P, etc.)
+        self._setup_global_shortcuts()
 
         # Connect window destroy to close engine
         self.connect("destroy", lambda _: self.engine_manager.close())
@@ -188,6 +198,193 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         # Initial synchronization & engine trigger
         self._sync_view_to_game()
         self._trigger_engine_analysis()
+
+    def _setup_global_shortcuts(self):
+        key_ctrl = Gtk.EventControllerKey.new()
+        key_ctrl.connect("key-pressed", self._on_window_key_pressed)
+        self.add_controller(key_ctrl)
+
+    def _on_window_key_pressed(self, ctrl, keyval, keycode, state):
+        is_ctrl = bool(state & Gdk.ModifierType.CONTROL_MASK)
+        is_shift = bool(state & Gdk.ModifierType.SHIFT_MASK)
+
+        # Ctrl+K or Ctrl+P -> Open Command Palette
+        if is_ctrl and keyval in (Gdk.KEY_k, Gdk.KEY_K, Gdk.KEY_p, Gdk.KEY_P):
+            self.open_command_palette()
+            return True
+
+        # Ctrl+Shift+F -> Open FEN Setup Modal
+        if is_ctrl and is_shift and keyval in (Gdk.KEY_f, Gdk.KEY_F):
+            self.open_fen_dialog()
+            return True
+
+        # Ctrl+C -> Copy FEN
+        if is_ctrl and keyval in (Gdk.KEY_c, Gdk.KEY_C):
+            clipboard = Gdk.Display.get_default().get_clipboard()
+            clipboard.set(self.game_model.board.fen())
+            return True
+
+        # Ctrl+N -> Reset to starting position
+        if is_ctrl and keyval in (Gdk.KEY_n, Gdk.KEY_N):
+            self.reset_to_start()
+            return True
+
+        # Escape -> Clear drawings
+        if keyval == Gdk.KEY_Escape:
+            self.board_view.clear_drawings()
+            return True
+
+        return False
+
+    def open_command_palette(self):
+        """Display Zed-style Command Palette modal."""
+        commands = self._build_palette_commands()
+        palette = CommandPalette(parent_window=self, commands=commands)
+        palette.present()
+
+    def open_fen_dialog(self):
+        """Open interactive FEN position setup dialog."""
+        current_fen = self.game_model.board.fen()
+        dialog = FENSetupDialog(
+            parent_window=self,
+            current_fen=current_fen,
+            on_fen_loaded=self._on_fen_loaded
+        )
+        dialog.present()
+
+    def _on_fen_loaded(self, fen: str):
+        board = chess.Board(fen)
+        new_game = chess.pgn.Game()
+        new_game.setup(board)
+        self.game_model = GameModel(new_game)
+        self.game_model.add_listener(self._on_game_model_changed)
+        self.move_tree_view.model = self.game_model
+        self.move_tree_view.rebuild_tree()
+        self._sync_view_to_game()
+        self._trigger_engine_analysis()
+
+    def reset_to_start(self):
+        """Reset board to initial chess starting position."""
+        self.game_model = GameModel()
+        self.game_model.add_listener(self._on_game_model_changed)
+        self.move_tree_view.model = self.game_model
+        self.move_tree_view.rebuild_tree()
+        self._sync_view_to_game()
+        self._trigger_engine_analysis()
+
+    def run_full_game_review(self):
+        """Run batch analysis across all moves in active game."""
+        if not self.engine_manager.is_available():
+            return
+        reviewer = BatchGameReviewer(self.engine_manager.engine_path)
+        result = reviewer.review_game(self.game_model.game, depth=8)
+        self.engine_dock.cpl_graph.set_data(result.cpl_curve)
+
+    def _build_palette_commands(self) -> list[CommandItem]:
+        """Assemble all executable commands for the palette."""
+        cmds = [
+            CommandItem(
+                id="board_flip",
+                title="Flip Board Perspective",
+                category="Board",
+                shortcut="F",
+                action=lambda: self._on_flip_clicked(None)
+            ),
+            CommandItem(
+                id="board_fen_modal",
+                title="Set Board Position (FEN)",
+                category="Board",
+                shortcut="Ctrl+Shift+F",
+                action=self.open_fen_dialog
+            ),
+            CommandItem(
+                id="board_copy_fen",
+                title="Copy Current FEN to Clipboard",
+                category="Board",
+                shortcut="Ctrl+C",
+                action=lambda: Gdk.Display.get_default().get_clipboard().set(self.game_model.board.fen())
+            ),
+            CommandItem(
+                id="board_reset",
+                title="Reset to Starting Position",
+                category="Board",
+                shortcut="Ctrl+N",
+                action=self.reset_to_start
+            ),
+            CommandItem(
+                id="board_clear_drawings",
+                title="Clear Board Arrows and Highlights",
+                category="Board",
+                shortcut="Escape",
+                action=self.board_view.clear_drawings
+            ),
+            CommandItem(
+                id="engine_toggle",
+                title="Toggle Live Engine Analysis",
+                category="Engine",
+                shortcut="Space",
+                action=self._toggle_engine
+            ),
+            CommandItem(
+                id="engine_review",
+                title="Run Full Game Review & CPL Curve",
+                category="Engine",
+                shortcut="Ctrl+R",
+                action=self.run_full_game_review
+            ),
+            CommandItem(
+                id="pgn_export",
+                title="Export PGN to Clipboard",
+                category="File",
+                shortcut="Ctrl+E",
+                action=lambda: Gdk.Display.get_default().get_clipboard().set(self.game_model.export_pgn())
+            ),
+            CommandItem(
+                id="nav_root",
+                title="Go to Game Start",
+                category="Navigation",
+                shortcut="Home",
+                action=self.game_model.go_to_root
+            ),
+            CommandItem(
+                id="nav_end",
+                title="Go to End of Game",
+                category="Navigation",
+                shortcut="End",
+                action=self.game_model.go_to_end
+            ),
+        ]
+
+        # Add dynamic theme switching commands
+        for theme in self.theme_manager.list_themes():
+            cmds.append(
+                CommandItem(
+                    id=f"theme_{theme.id}",
+                    title=f"Switch Theme: {theme.name}",
+                    category="Themes",
+                    action=lambda t_id=theme.id: self.theme_manager.set_active_theme(t_id)
+                )
+            )
+
+        return cmds
+
+    def _toggle_engine(self):
+        self.engine_enabled = not self.engine_enabled
+        if not self.engine_enabled:
+            self.engine_manager.stop_current_analysis()
+            self.status_bar.engine_label.set_text("Stockfish 18 · Paused")
+        else:
+            self._trigger_engine_analysis()
+
+    def _on_graph_ply_selected(self, ply: int):
+        """Navigate to move when clicked on CPL graph."""
+        moves = list(self.game_model.game.mainline())
+        if 0 <= ply <= len(moves):
+            node = self.game_model.game.root()
+            for _ in range(ply):
+                if node.variations:
+                    node = node.variations[0]
+            self.game_model.go_to_node(node)
 
     def _on_flip_clicked(self, btn):
         self.board_view.flip()
@@ -200,7 +397,8 @@ class ChessReaderWindow(Adw.ApplicationWindow):
 
     def _on_game_model_changed(self, model: GameModel):
         self._sync_view_to_game()
-        self._trigger_engine_analysis()
+        if self.engine_enabled:
+            self._trigger_engine_analysis()
 
     def _sync_view_to_game(self):
         board = self.game_model.board
@@ -210,8 +408,7 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         self.titlebar.set_breadcrumb(self.game_model.get_breadcrumb_title())
 
     def _trigger_engine_analysis(self):
-        """Request live background Multi-PV analysis for current position."""
-        if self.engine_manager.is_available():
+        if self.engine_manager.is_available() and self.engine_enabled:
             board = self.game_model.board
             self.engine_manager.analyze_position(
                 board=board,

@@ -253,3 +253,139 @@ paned.zed-workspace > separator {
     border-radius: 3px;
     margin-top: 6px;
 }
+
+/* ==========================================================================
+   Command Palette Styles (Zed Aesthetic)
+   ========================================================================== */
+
+window.command-palette-window {
+    background-color: @zed_bg_darkest;
+    border: 1px solid @zed_border_focus;
+    border-radius: 6px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65);
+}
+
+.palette-search-box {
+    padding: 8px 10px;
+    border-bottom: 1px solid @zed_border_subtle;
+    background-color: @zed_bg_darkest;
+}
+
+.palette-search-entry {
+    font-family: "JetBrains Mono", "Adwaita Mono", monospace;
+    font-size: 13px;
+    background-color: @zed_bg_base;
+    color: @zed_fg_primary;
+    border-radius: 4px;
+    border: 1px solid @zed_border_subtle;
+}
+
+.palette-search-entry:focus {
+    border-color: @zed_accent_blue;
+}
+
+.palette-list-box {
+    background-color: @zed_bg_darkest;
+    padding: 4px;
+}
+
+.palette-list-box row {
+    padding: 0;
+    margin: 1px 0;
+    border-radius: 4px;
+}
+
+.palette-list-box row:selected .palette-row-box {
+    background-color: @zed_bg_active;
+}
+
+.palette-row-box {
+    padding: 6px 10px;
+    border-radius: 4px;
+}
+
+.palette-row-box:hover {
+    background-color: @zed_bg_hover;
+}
+
+.palette-category-badge {
+    font-size: 10px;
+    font-weight: 600;
+    color: @zed_fg_muted;
+    background-color: @zed_bg_hover;
+    border-radius: 3px;
+    padding: 1px 5px;
+    min-width: 45px;
+}
+
+.palette-title-label {
+    font-family: "JetBrains Mono", "Adwaita Mono", monospace;
+    font-size: 12px;
+    color: @zed_fg_primary;
+}
+
+.palette-shortcut-badge {
+    font-family: "JetBrains Mono", "Adwaita Mono", monospace;
+    font-size: 10px;
+    color: @zed_fg_secondary;
+    background-color: @zed_bg_panel;
+    border: 1px solid @zed_border_subtle;
+    border-radius: 3px;
+    padding: 1px 5px;
+}
+
+/* ==========================================================================
+   FEN Setup Dialog Styles (Zed Aesthetic)
+   ========================================================================== */
+
+window.fen-dialog-window {
+    background-color: @zed_bg_darkest;
+    border: 1px solid @zed_border_focus;
+    border-radius: 6px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65);
+}
+
+.fen-dialog-content {
+    padding: 18px 20px;
+    background-color: @zed_bg_darkest;
+}
+
+.fen-dialog-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: @zed_fg_primary;
+}
+
+.fen-dialog-desc {
+    font-size: 11px;
+    color: @zed_fg_muted;
+    margin-bottom: 4px;
+}
+
+.fen-dialog-entry {
+    font-family: "JetBrains Mono", "Adwaita Mono", monospace;
+    font-size: 12px;
+    background-color: @zed_bg_base;
+    color: @zed_fg_primary;
+    border: 1px solid @zed_border_subtle;
+    border-radius: 4px;
+    padding: 6px 8px;
+}
+
+.fen-dialog-entry:focus {
+    border-color: @zed_accent_blue;
+}
+
+.fen-status-valid {
+    font-family: "JetBrains Mono", "Adwaita Mono", monospace;
+    font-size: 11px;
+    color: @zed_accent_green;
+    font-weight: 600;
+}
+
+.fen-status-invalid {
+    font-family: "JetBrains Mono", "Adwaita Mono", monospace;
+    font-size: 11px;
+    color: @zed_accent_red;
+    font-weight: 600;
+}

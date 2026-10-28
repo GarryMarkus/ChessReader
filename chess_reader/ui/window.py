@@ -47,6 +47,23 @@ class ZedTitlebar(Gtk.Box):
         self.set_breadcrumb(["Live Analysis", "Starting Position"])
         self.header.pack_start(self.breadcrumb_box)
 
+        # Center: ChessBase-style Navigation Switcher (Databases vs Board)
+        self.nav_switcher = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
+        self.nav_switcher.add_css_class("chessbase-nav-switcher")
+
+        self.db_tab_btn = Gtk.Button(label="🗄 Databases")
+        self.db_tab_btn.add_css_class("nav-tab-btn")
+        self.db_tab_btn.set_tooltip_text("ChessBase Database Window (Ctrl+H)")
+
+        self.board_tab_btn = Gtk.Button(label="♟ Board Analysis")
+        self.board_tab_btn.add_css_class("nav-tab-btn")
+        self.board_tab_btn.add_css_class("nav-tab-active")
+        self.board_tab_btn.set_tooltip_text("Board Analysis Window (Ctrl+B)")
+
+        self.nav_switcher.append(self.db_tab_btn)
+        self.nav_switcher.append(self.board_tab_btn)
+        self.header.set_title_widget(self.nav_switcher)
+
         # Right: Quick action buttons
         self.view_btn = Gtk.Button(label="🏠 Library")
         self.view_btn.set_tooltip_text("Toggle Library / Board View (Ctrl+H / Ctrl+B)")
@@ -90,6 +107,15 @@ class ZedTitlebar(Gtk.Box):
             else:
                 lbl.add_css_class("breadcrumb-segment")
             self.breadcrumb_box.append(lbl)
+
+    def set_active_tab(self, tab_name: str):
+        """Update active state of ChessBase navigation switcher."""
+        if tab_name == "home":
+            self.db_tab_btn.add_css_class("nav-tab-active")
+            self.board_tab_btn.remove_css_class("nav-tab-active")
+        else:
+            self.board_tab_btn.add_css_class("nav-tab-active")
+            self.db_tab_btn.remove_css_class("nav-tab-active")
 
 
 class StatusBar(Gtk.Box):
@@ -236,6 +262,8 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         self.toolbar_view.add_bottom_bar(self.status_bar)
 
         # Connect actions & listeners
+        self.titlebar.db_tab_btn.connect("clicked", lambda _: self.show_home_view())
+        self.titlebar.board_tab_btn.connect("clicked", lambda _: self.show_board_view())
         self.titlebar.view_btn.connect("clicked", lambda _: self.toggle_main_view())
         self.titlebar.engine_btn.connect("clicked", lambda _: self.open_engine_dialog())
         self.titlebar.pieces_btn.connect("clicked", lambda _: self.open_appearance_dialog())
@@ -344,6 +372,7 @@ class ChessReaderWindow(Adw.ApplicationWindow):
     def show_home_view(self):
         """Switch to dedicated Home Library View."""
         self.main_stack.set_visible_child_name("home")
+        self.titlebar.set_active_tab("home")
         self.titlebar.view_btn.set_label("♟ Board")
         self.titlebar.view_btn.set_tooltip_text("Switch to Board Analysis (Ctrl+B)")
         self.titlebar.set_breadcrumb(["Library", "Databases & Folder Shortcuts"])
@@ -353,6 +382,7 @@ class ChessReaderWindow(Adw.ApplicationWindow):
     def show_board_view(self):
         """Switch to Interactive Chess Board View."""
         self.main_stack.set_visible_child_name("board")
+        self.titlebar.set_active_tab("board")
         self.titlebar.view_btn.set_label("🏠 Library")
         self.titlebar.view_btn.set_tooltip_text("Switch to Library & Shortcuts (Ctrl+H)")
         self.titlebar.set_breadcrumb(self.game_model.get_breadcrumb_title())

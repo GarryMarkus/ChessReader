@@ -223,20 +223,53 @@ class HomeView(Gtk.Box):
         while child := self.shortcuts_container.get_first_child():
             self.shortcuts_container.remove(child)
 
-        shortcuts = self.library_store.get_folder_shortcuts()
-        if not shortcuts:
-            empty_lbl = Gtk.Label(label="No folder shortcuts yet.\nClick '+ Add' to pin a chess folder.", xalign=0.0)
-            empty_lbl.add_css_class("zed-empty-label")
-            self.shortcuts_container.append(empty_lbl)
-            return
+        # 1. ChessBase-style 'All Databases' master shortcut at the top
+        all_db_card = self._create_all_databases_card()
+        self.shortcuts_container.append(all_db_card)
 
+        shortcuts = self.library_store.get_folder_shortcuts()
         for sc in shortcuts:
             card = self._create_shortcut_card(sc)
             self.shortcuts_container.append(card)
 
-        # Select first folder if none active
-        if (not self.active_folder_path or not os.path.exists(self.active_folder_path)) and shortcuts:
-            self._select_folder(shortcuts[0]["path"])
+        # Default to All Databases on initial load
+        if not self.active_folder_path:
+            self._select_all_databases()
+        elif self.active_folder_path == "all":
+            self._select_all_databases()
+        elif os.path.exists(self.active_folder_path):
+            self._select_folder(self.active_folder_path)
+        else:
+            self._select_all_databases()
+
+    def _create_all_databases_card(self) -> Gtk.Button:
+        btn = Gtk.Button()
+        btn.add_css_class("zed-shortcut-card")
+        if self.active_folder_path == "all" or not self.active_folder_path:
+            btn.add_css_class("zed-card-active")
+
+        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        row.set_margin_start(8)
+        row.set_margin_end(8)
+        row.set_margin_top(6)
+        row.set_margin_bottom(6)
+
+        icon = Gtk.Label(label="🗄")
+        row.append(icon)
+
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
+        name_lbl = Gtk.Label(label="All Databases & Archives", xalign=0.0)
+        name_lbl.add_css_class("zed-card-title")
+        desc_lbl = Gtk.Label(label="Aggregated view of all local chess databases", xalign=0.0)
+        desc_lbl.add_css_class("zed-card-desc")
+        vbox.append(name_lbl)
+        vbox.append(desc_lbl)
+        vbox.set_hexpand(True)
+        row.append(vbox)
+
+        btn.set_child(row)
+        btn.connect("clicked", lambda _: self._select_all_databases())
+        return btn
 
     def refresh_recents(self):
         """Re-render recent files list."""
@@ -325,8 +358,76 @@ class HomeView(Gtk.Box):
         row.append(vbox)
 
         btn.set_child(row)
+        click_ctrl = Gtk.GestureClick.new()
+        click_ctrl.connect(
+            "pressed",
+            lambda gesture, n_press, x, y, p=rec["path"]:
+                self._open_and_load_database(p) if n_press >= 2 else self._select_pgn(p)
+        )
+        btn.add_controller(click_ctrl)
         btn.connect("clicked", lambda _, p=rec["path"]: self._select_pgn(p))
         return btn
+
+    def _select_all_databases(self):
+        """Aggregate and display all databases from all pinned folders and recents."""
+        self.active_folder_path = "all"
+        self.folder_title_lbl.set_text("ALL DATABASES & ARCHIVES (Double-click to open on board)")
+
+        while child := self.files_container.get_first_child():
+            self.files_container.remove(child)
+
+        all_pgns: List[Dict[str, Any]] = []
+        seen_paths = set()
+
+        # 1. From pinned shortcut folders
+        for sc in self.library_store.get_folder_shortcuts():
+            for pgn in self.library_store.scan_folder_for_pgns(sc["path"]):
+                if pgn["path"] not in seen_paths:
+                    seen_paths.add(pgn["path"])
+                    all_pgns.append(pgn)
+
+        # 2. From recent files
+        for rec in self.library_store.get_recent_files():
+            if rec["path"] not in seen_paths and os.path.exists(rec["path"]):
+                seen_paths.add(rec["path"])
+                try:
+                    stat = os.stat(rec["path"])
+                    all_pgns.append({
+                        "name": rec["name"],
+                        "path": rec["path"],
+                        "size_bytes": stat.st_size,
+                        "size_str": rec.get("size_str", ""),
+                        "mtime_str": rec.get("last_opened", "")[:16],
+                        "game_count": rec.get("game_count", 1),
+                        "is_db": rec["name"].lower().endswith(".db")
+                    })
+                except OSError:
+                    continue
+
+        if not all_pgns:
+            empty_lbl = Gtk.Label(
+                label="No chess databases found yet.\nUse '+ New PGN Database' or 'Open PGN File' to add databases.",
+                xalign=0.0
+            )
+            empty_lbl.add_css_class("zed-empty-label")
+            self.files_container.append(empty_lbl)
+            return
+
+        for pgn_info in all_pgns:
+            card = self._create_pgn_file_card(pgn_info)
+            self.files_container.append(card)
+
+        # Pre-select first
+        if all_pgns:
+            self._select_pgn(all_pgns[0]["path"])
+
+    def _open_and_load_database(self, pgn_path: str):
+        """ChessBase-style: Double-clicking database immediately opens it on the board."""
+        self._select_pgn(pgn_path)
+        if self.cached_games:
+            self._load_game_index(0)
+        else:
+            self._navigate_to_board()
 
     def _select_folder(self, folder_path: str):
         """Scan and display PGN files in selected folder."""
@@ -354,8 +455,18 @@ class HomeView(Gtk.Box):
     def _create_pgn_file_card(self, pgn_info: Dict[str, Any]) -> Gtk.Button:
         btn = Gtk.Button()
         btn.add_css_class("zed-card-button")
+        btn.set_tooltip_text("Double-click to open database on board\nSingle-click to view games below")
         if self.active_pgn_path == pgn_info["path"]:
             btn.add_css_class("zed-card-active")
+
+        # Double-click opens directly on board; single-click selects
+        click_ctrl = Gtk.GestureClick.new()
+        click_ctrl.connect(
+            "pressed",
+            lambda gesture, n_press, x, y, p=pgn_info["path"]:
+                self._open_and_load_database(p) if n_press >= 2 else self._select_pgn(p)
+        )
+        btn.add_controller(click_ctrl)
 
         row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
         row.set_margin_start(12)
@@ -450,6 +561,14 @@ class HomeView(Gtk.Box):
         row.append(load_lbl)
 
         btn.set_child(row)
+        btn.set_tooltip_text("Double-click to open game on board")
+        click_ctrl = Gtk.GestureClick.new()
+        click_ctrl.connect(
+            "pressed",
+            lambda gesture, n_press, x, y, g_idx=game["index"]:
+                self._load_game_index(g_idx) if n_press >= 1 else None
+        )
+        btn.add_controller(click_ctrl)
         btn.connect("clicked", lambda _, g_idx=game["index"]: self._load_game_index(g_idx))
         return btn
 

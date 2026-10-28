@@ -28,6 +28,10 @@ dev = [
 [project.scripts]
 chess-reader = "chess_reader.main:main"
 
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["chess_reader*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]

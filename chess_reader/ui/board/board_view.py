@@ -51,13 +51,19 @@ def parse_color(color_str: str) -> tuple[float, float, float, float]:
 class ChessBoardView(Gtk.DrawingArea):
     """High-performance hardware-accelerated interactive chessboard widget."""
 
-    def __init__(self, theme: Optional[ChessReaderTheme] = None, asset_cache: Optional[PieceAssetCache] = None):
+    def __init__(
+        self,
+        theme: Optional[ChessReaderTheme] = None,
+        asset_cache: Optional[PieceAssetCache] = None,
+        piece_set: Optional[object] = None
+    ):
         super().__init__()
         self.set_hexpand(True)
         self.set_vexpand(True)
         self.set_focusable(True)
 
         self.theme: Optional[ChessReaderTheme] = theme
+        self.piece_set: Optional[object] = piece_set
         self.asset_cache: PieceAssetCache = asset_cache or PieceAssetCache()
         self.geometry = BoardGeometry()
 
@@ -94,9 +100,10 @@ class ChessBoardView(Gtk.DrawingArea):
         # Attach Event Controllers
         self._setup_input_controllers()
 
-    def set_theme(self, theme: ChessReaderTheme):
-        """Update active theme and queue repaint."""
+    def set_theme(self, theme: ChessReaderTheme, piece_set: Optional[object] = None):
+        """Update active theme and piece set and queue repaint."""
         self.theme = theme
+        self.piece_set = piece_set
         self.queue_draw()
 
     def set_board(self, board: chess.Board, last_move: Optional[chess.Move] = None):
@@ -446,7 +453,9 @@ class ChessBoardView(Gtk.DrawingArea):
             piece = self.board.piece_at(sq)
             if piece:
                 sym = ("w" if piece.color == chess.WHITE else "b") + piece.symbol().upper()
-                surf = self.asset_cache.get_piece_surface(self.theme, sym, sq_size, scale_factor)
+                surf = self.asset_cache.get_piece_surface(
+                    self.theme, sym, sq_size, scale_factor, piece_set=self.piece_set
+                )
                 x, y, _, _ = self.geometry.square_to_rect(sq)
 
                 ctx.save()
@@ -523,7 +532,9 @@ class ChessBoardView(Gtk.DrawingArea):
         sq_size = int(self.geometry.square_size)
         scale_factor = self.get_scale_factor()
         sym = ("w" if piece.color == chess.WHITE else "b") + piece.symbol().upper()
-        surf = self.asset_cache.get_piece_surface(self.theme, sym, sq_size, scale_factor)
+        surf = self.asset_cache.get_piece_surface(
+            self.theme, sym, sq_size, scale_factor, piece_set=self.piece_set
+        )
 
         # Centered on mouse cursor
         px = self.drag_x - (sq_size / 2.0)

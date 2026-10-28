@@ -25,17 +25,29 @@ class AssetResolver:
     DEFAULT_DARK_SQUARE = "#1e2227"
 
     @classmethod
-    def resolve_piece_path(cls, theme: Optional[ChessReaderTheme], symbol: str) -> str:
+    def resolve_piece_path(
+        cls,
+        theme: Optional[ChessReaderTheme],
+        symbol: str,
+        piece_set: Optional[object] = None
+    ) -> str:
         """
         Resolve the file path for a piece symbol with multi-stage fallback:
-        1. Theme-specified path (resolved relative to theme file).
-        2. Built-in standard PNG piece.
-        3. Built-in cburnett SVG piece.
+        1. Explicit piece set override (if selected by user).
+        2. Theme-specified path (resolved relative to theme file).
+        3. Built-in standard PNG piece.
+        4. Built-in cburnett SVG piece.
         """
         if symbol not in cls.PIECE_SYMBOLS:
             raise ValueError(f"Invalid piece symbol: {symbol}")
 
-        # 1. Attempt theme resolution
+        # 1. Explicit Piece Set override
+        if piece_set and hasattr(piece_set, "get_piece_path"):
+            path = piece_set.get_piece_path(symbol)
+            if path and os.path.exists(path):
+                return path
+
+        # 2. Attempt theme resolution
         if theme and theme.pieces:
             specified_path = theme.pieces.get_piece_path(symbol)
             if specified_path:
@@ -43,12 +55,12 @@ class AssetResolver:
                 if os.path.exists(resolved) and os.path.isfile(resolved):
                     return resolved
 
-        # 2. Built-in standard PNG
+        # 3. Built-in standard PNG
         fallback_png = os.path.join(cls.FALLBACK_PNG_DIR, f"{symbol}.png")
         if os.path.exists(fallback_png):
             return fallback_png
 
-        # 3. Built-in SVG
+        # 4. Built-in SVG
         fallback_svg = os.path.join(cls.FALLBACK_SVG_DIR, f"{symbol}.svg")
         if os.path.exists(fallback_svg):
             return fallback_svg

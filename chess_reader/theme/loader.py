@@ -9,6 +9,7 @@ import logging
 from typing import Dict, List, Optional, Callable
 
 from chess_reader.theme.schema import ChessReaderTheme
+from chess_reader.theme.piece_sets import PieceSetManager, PieceSetInfo
 
 logger = logging.getLogger(__name__)
 
@@ -22,17 +23,45 @@ class ThemeManager:
         self._project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         self.builtin_themes_dir = os.path.join(self._project_root, "themes")
 
+        xdg_config = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
         if user_themes_dir:
             self.user_themes_dir = user_themes_dir
         else:
-            xdg_config = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
             self.user_themes_dir = os.path.join(xdg_config, "chess-reader", "themes")
 
         self._themes: Dict[str, ChessReaderTheme] = {}
         self._active_theme_id: str = self.DEFAULT_THEME_ID
         self._listeners: List[Callable[[ChessReaderTheme], None]] = []
 
+        self.piece_set_manager = PieceSetManager(config_dir=os.path.join(xdg_config, "chess-reader"))
+        self.piece_set_manager.add_listener(lambda _: self._notify_listeners())
+
         self.reload_themes()
+
+    @property
+    def active_piece_set(self) -> Optional[PieceSetInfo]:
+        """Return currently active piece set override if any."""
+        return self.piece_set_manager.active_piece_set
+
+    @property
+    def active_piece_set_id(self) -> Optional[str]:
+        """Return ID of currently active piece set override if any."""
+        return self.piece_set_manager.active_piece_set_id
+
+    def set_active_piece_set(self, set_id: Optional[str]) -> bool:
+        """Switch active piece set override and notify theme listeners."""
+        res = self.piece_set_manager.set_active_piece_set(set_id)
+        if res:
+            self._notify_listeners()
+        return res
+
+    def _notify_listeners(self):
+        current = self.active_theme
+        for listener in self._listeners:
+            try:
+                listener(current)
+            except Exception as e:
+                logger.error("Error invoking theme change listener: %s", e)
 
     @property
     def active_theme(self) -> ChessReaderTheme:

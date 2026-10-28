@@ -389,3 +389,240 @@ window.fen-dialog-window {
     color: @zed_accent_red;
     font-weight: 600;
 }
+
+/* ==========================================================================
+   Appearance & Piece Selector Dialog Styles
+   ========================================================================== */
+
+window.zed-modal-window {
+    background-color: @zed_bg_darkest;
+    border: 1px solid @zed_border_focus;
+    border-radius: 8px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.75);
+}
+
+.zed-modal-header {
+    border-bottom: 1px solid @zed_border_subtle;
+    padding-bottom: 10px;
+}
+
+.zed-modal-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: @zed_fg_primary;
+}
+
+.zed-modal-subtitle {
+    font-size: 11px;
+    color: @zed_fg_muted;
+}
+
+.zed-section-title {
+    font-family: "JetBrains Mono", "Adwaita Mono", monospace;
+    font-size: 10px;
+    font-weight: 700;
+    color: @zed_fg_secondary;
+    letter-spacing: 0.8px;
+    margin-bottom: 6px;
+}
+
+.zed-card-button {
+    background-color: @zed_bg_panel;
+    border: 1px solid @zed_border_subtle;
+    border-radius: 6px;
+    padding: 0;
+    transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.zed-card-button:hover {
+    background-color: @zed_bg_hover;
+    border-color: @zed_border_focus;
+}
+
+.zed-card-button.zed-card-active {
+    background-color: @zed_bg_hover;
+    border-color: @zed_accent_blue;
+}
+
+.zed-card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: @zed_fg_primary;
+}
+
+.zed-card-desc {
+    font-size: 10px;
+    color: @zed_fg_muted;
+}
+
+.zed-pill-active {
+    font-family: "JetBrains Mono", "Adwaita Mono", monospace;
+    font-size: 10px;
+    font-weight: 700;
+    color: @zed_accent_green;
+    background-color: rgba(152, 195, 121, 0.12);
+    border: 1px solid rgba(152, 195, 121, 0.3);
+    border-radius: 12px;
+    padding: 2px 8px;
+}
+
+.zed-btn-secondary {
+    font-family: "JetBrains Mono", "Adwaita Mono", monospace;
+    font-size: 11px;
+    background-color: @zed_bg_hover;
+    color: @zed_fg_primary;
+    border: 1px solid @zed_border_subtle;
+    border-radius: 4px;
+    padding: 3px 8px;
+}
+
+.zed-btn-secondary:hover {
+    background-color: @zed_bg_active;
+    border-color: @zed_border_focus;
+}
+
+.theme-swatch-light {
+    background-color: #f0d9b5;
+    border-radius: 3px 0 0 3px;
+}
+
+.theme-swatch-dark {
+    background-color: #b58863;
+    border-radius: 0 3px 3px 0;
+}
+
+/* ==========================================================================
+   Home Page & Library View Styles (Zed Aesthetic)
+   ========================================================================== */
+
+.zed-home-view {
+    background-color: @zed_bg_base;
+}
+
+.zed-home-topbar {
+    border-bottom: 1px solid @zed_border_subtle;
+    padding-bottom: 12px;
+}
+
+.zed-home-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: @zed_fg_primary;
+}
+
+.zed-home-subtitle {
+    font-size: 11px;
+    color: @zed_fg_muted;
+}
+
+.zed-btn-primary {
+    font-family: "JetBrains Mono", "Adwaita Mono", monospace;
+    font-size: 11px;
+    font-weight: 600;
+    background-color: @zed_accent_blue;
+    color: #0e1117;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+}
+
+.zed-btn-primary:hover {
+    background-color: #79bbf2;
+}
+
+.zed-shortcut-card {
+    background-color: @zed_bg_panel;
+    border: 1px solid @zed_border_subtle;
+    border-radius: 5px;
+    transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.zed-shortcut-card:hover {
+    background-color: @zed_bg_hover;
+    border-color: @zed_border_focus;
+}
+
+.zed-shortcut-card.zed-card-active {
+    background-color: @zed_bg_hover;
+    border-color: @zed_accent_blue;
+}
+
+.zed-btn-remove {
+    font-size: 10px;
+    color: @zed_fg_muted;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.zed-btn-remove:hover {
+    color: @zed_accent_red;
+    background-color: rgba(224, 108, 117, 0.15);
+}
+
+.zed-pill-explore {
+    font-family: "JetBrains Mono", "Adwaita Mono", monospace;
+    font-size: 10px;
+    color: @zed_accent_blue;
+    padding: 2px 6px;
+}
+
+.zed-game-row {
+    background-color: @zed_bg_panel;
+    border: 1px solid @zed_border_subtle;
+    border-radius: 4px;
+    padding: 0;
+    transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.zed-game-row:hover {
+    background-color: @zed_bg_hover;
+    border-color: @zed_border_focus;
+}
+
+.zed-game-idx {
+    font-family: "JetBrains Mono", "Adwaita Mono", monospace;
+    font-size: 11px;
+    color: @zed_fg_muted;
+    min-width: 28px;
+}
+
+.zed-game-players {
+    font-size: 12px;
+    font-weight: 600;
+    color: @zed_fg_primary;
+}
+
+.zed-game-meta {
+    font-family: "JetBrains Mono", "Adwaita Mono", monospace;
+    font-size: 10px;
+    color: @zed_fg_secondary;
+}
+
+.zed-result-badge {
+    font-family: "JetBrains Mono", "Adwaita Mono", monospace;
+    font-size: 10px;
+    font-weight: 700;
+    color: @zed_fg_primary;
+    background-color: @zed_bg_darkest;
+    border: 1px solid @zed_border_subtle;
+    border-radius: 3px;
+    padding: 2px 6px;
+}
+
+.zed-pill-load {
+    font-family: "JetBrains Mono", "Adwaita Mono", monospace;
+    font-size: 10px;
+    font-weight: 600;
+    color: @zed_accent_green;
+    background-color: rgba(152, 195, 121, 0.12);
+    border: 1px solid rgba(152, 195, 121, 0.3);
+    border-radius: 4px;
+    padding: 2px 6px;
+}
+
+.zed-empty-label {
+    font-size: 11px;
+    color: @zed_fg_muted;
+    font-style: italic;
+    padding: 12px 6px;
+}

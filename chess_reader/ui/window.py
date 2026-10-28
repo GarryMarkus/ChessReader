@@ -11,6 +11,7 @@ from gi.repository import Gtk, Adw, Gdk
 
 import chess
 from chess_reader.core.game_model import GameModel
+from chess_reader.core.library_store import LibraryStore
 from chess_reader.theme.loader import ThemeManager
 from chess_reader.theme.asset_cache import PieceAssetCache
 from chess_reader.engine.uci_client import UCIEngineManager
@@ -21,6 +22,8 @@ from chess_reader.ui.dock.eval_bar import EvalBar
 from chess_reader.ui.dock.engine_dock import EngineDock
 from chess_reader.ui.palette.command_palette import CommandPalette, CommandItem
 from chess_reader.ui.modals.fen_dialog import FENSetupDialog
+from chess_reader.ui.modals.appearance_dialog import AppearanceDialog
+from chess_reader.ui.home.home_view import HomeView
 
 
 class ZedTitlebar(Gtk.Box):
@@ -44,6 +47,16 @@ class ZedTitlebar(Gtk.Box):
         self.header.pack_start(self.breadcrumb_box)
 
         # Right: Quick action buttons
+        self.view_btn = Gtk.Button(label="🏠 Library")
+        self.view_btn.set_tooltip_text("Toggle Library / Board View (Ctrl+H / Ctrl+B)")
+        self.view_btn.add_css_class("flat")
+        self.header.pack_end(self.view_btn)
+
+        self.pieces_btn = Gtk.Button(label="♟ Pieces")
+        self.pieces_btn.set_tooltip_text("Change Pieces & Themes (Ctrl+T)")
+        self.pieces_btn.add_css_class("flat")
+        self.header.pack_end(self.pieces_btn)
+
         self.flip_btn = Gtk.Button(label="Flip (F)")
         self.flip_btn.set_tooltip_text("Flip Board Perspective (F)")
         self.flip_btn.add_css_class("flat")
@@ -98,14 +111,22 @@ class StatusBar(Gtk.Box):
         self.fen_btn.connect("clicked", self._on_fen_clicked)
         self.append(self.fen_btn)
 
-        # Active Theme Profile
-        self.theme_label = Gtk.Label(label="Theme: zed-dark")
-        self.theme_label.add_css_class("zed-status-item")
-        self.append(self.theme_label)
+        # Active Theme & Pieces Profile Button
+        self.theme_btn = Gtk.Button(label="Theme: zed-dark")
+        self.theme_btn.set_tooltip_text("Click to change chess pieces and themes")
+        self.theme_btn.add_css_class("flat")
+        self.theme_btn.add_css_class("zed-status-interactive")
+        self.theme_label = self.theme_btn
+        self.theme_btn.get_text = self.theme_btn.get_label
+        self.append(self.theme_btn)
 
     def set_fen(self, fen: str):
         """Update FEN button text."""
         self.fen_btn.set_label(fen)
+
+    def set_theme_label(self, label: str):
+        """Update theme status button text."""
+        self.theme_btn.set_label(label)
 
     def _on_fen_clicked(self, btn):
         clipboard = Gdk.Display.get_default().get_clipboard()
@@ -136,12 +157,30 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         self.titlebar = ZedTitlebar()
         self.toolbar_view.add_top_bar(self.titlebar)
 
-        # 2. Main Workspace Split Pane (Content)
+        # 2. Main Stack (Home Library View vs Board Workspace)
+        self.main_stack = Gtk.Stack()
+        self.main_stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+        self.main_stack.set_transition_duration(150)
+        self.main_stack.set_vexpand(True)
+        self.toolbar_view.set_content(self.main_stack)
+
+        # 2a. Dedicated Home Page View (Folder Shortcuts, PGN Databases, Games Browser)
+        self.library_store = LibraryStore()
+        self.home_view = HomeView(
+            library_store=self.library_store,
+            on_load_game=self._on_library_game_loaded,
+            on_switch_to_board=self.show_board_view,
+            parent_window=self
+        )
+        self.main_stack.add_named(self.home_view, "home")
+
+        # 2b. Board Workspace Split Pane
         self.workspace = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
         self.workspace.add_css_class("zed-workspace")
         self.workspace.set_vexpand(True)
         self.workspace.set_position(750)
-        self.toolbar_view.set_content(self.workspace)
+        self.main_stack.add_named(self.workspace, "board")
+        self.main_stack.set_visible_child_name("board")
 
         # Left / Center: Interactive Chess Board + Eval Bar + Analysis Dock
         self.board_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -186,8 +225,11 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         self.toolbar_view.add_bottom_bar(self.status_bar)
 
         # Connect actions & listeners
+        self.titlebar.view_btn.connect("clicked", lambda _: self.toggle_main_view())
+        self.titlebar.pieces_btn.connect("clicked", lambda _: self.open_appearance_dialog())
         self.titlebar.flip_btn.connect("clicked", self._on_flip_clicked)
         self.titlebar.palette_btn.connect("clicked", lambda _: self.open_command_palette())
+        self.status_bar.theme_btn.connect("clicked", lambda _: self.open_appearance_dialog())
         self.theme_manager.add_theme_listener(self._on_theme_changed)
         self.game_model.add_listener(self._on_game_model_changed)
 
@@ -198,6 +240,7 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         self.connect("destroy", lambda _: self.engine_manager.close())
 
         # Initial synchronization & engine trigger
+        self._on_theme_changed(self.theme_manager.active_theme)
         self._sync_view_to_game()
         self._trigger_engine_analysis()
 
@@ -213,6 +256,26 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         # Ctrl+K or Ctrl+P -> Open Command Palette
         if is_ctrl and keyval in (Gdk.KEY_k, Gdk.KEY_K, Gdk.KEY_p, Gdk.KEY_P):
             self.open_command_palette()
+            return True
+
+        # Ctrl+H -> Go to Library / Home
+        if is_ctrl and keyval in (Gdk.KEY_h, Gdk.KEY_H):
+            self.show_home_view()
+            return True
+
+        # Ctrl+B -> Go to Chess Board Analysis
+        if is_ctrl and keyval in (Gdk.KEY_b, Gdk.KEY_B):
+            self.show_board_view()
+            return True
+
+        # Ctrl+T -> Open Appearance / Pieces Dialog
+        if is_ctrl and keyval in (Gdk.KEY_t, Gdk.KEY_T):
+            self.open_appearance_dialog()
+            return True
+
+        # Ctrl+O -> Open PGN File Chooser
+        if is_ctrl and keyval in (Gdk.KEY_o, Gdk.KEY_O):
+            self.home_view._on_open_file_clicked(None)
             return True
 
         # Ctrl+Shift+F -> Open FEN Setup Modal
@@ -265,6 +328,44 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         self._sync_view_to_game()
         self._trigger_engine_analysis()
 
+    def show_home_view(self):
+        """Switch to dedicated Home Library View."""
+        self.main_stack.set_visible_child_name("home")
+        self.titlebar.view_btn.set_label("♟ Board")
+        self.titlebar.view_btn.set_tooltip_text("Switch to Board Analysis (Ctrl+B)")
+        self.titlebar.set_breadcrumb(["Library", "Databases & Folder Shortcuts"])
+        self.home_view.refresh_shortcuts()
+        self.home_view.refresh_recents()
+
+    def show_board_view(self):
+        """Switch to Interactive Chess Board View."""
+        self.main_stack.set_visible_child_name("board")
+        self.titlebar.view_btn.set_label("🏠 Library")
+        self.titlebar.view_btn.set_tooltip_text("Switch to Library & Shortcuts (Ctrl+H)")
+        self.titlebar.set_breadcrumb(self.game_model.get_breadcrumb_title())
+
+    def toggle_main_view(self):
+        """Toggle between Home Library and Board views."""
+        if self.main_stack.get_visible_child_name() == "home":
+            self.show_board_view()
+        else:
+            self.show_home_view()
+
+    def open_appearance_dialog(self):
+        """Open Theme & Piece Set Selector modal."""
+        dlg = AppearanceDialog(self, self.theme_manager)
+        dlg.present()
+
+    def _on_library_game_loaded(self, game_ast: chess.pgn.Game, pgn_path: str):
+        """Load a game from the library and transition directly to the board."""
+        self.game_model = GameModel(game_ast)
+        self.game_model.add_listener(self._on_game_model_changed)
+        self.move_tree_view.model = self.game_model
+        self.move_tree_view.rebuild_tree()
+        self._sync_view_to_game()
+        self._trigger_engine_analysis()
+        self.show_board_view()
+
     def reset_to_start(self):
         """Reset board to initial chess starting position."""
         self.game_model = GameModel()
@@ -285,6 +386,46 @@ class ChessReaderWindow(Adw.ApplicationWindow):
     def _build_palette_commands(self) -> list[CommandItem]:
         """Assemble all executable commands for the palette."""
         cmds = [
+            CommandItem(
+                id="view_library",
+                title="Go to Library & Databases",
+                category="Navigation",
+                shortcut="Ctrl+H",
+                action=self.show_home_view
+            ),
+            CommandItem(
+                id="view_board",
+                title="Go to Chess Board Analysis",
+                category="Navigation",
+                shortcut="Ctrl+B",
+                action=self.show_board_view
+            ),
+            CommandItem(
+                id="appearance_modal",
+                title="Appearance: Change Pieces & Themes...",
+                category="Appearance",
+                shortcut="Ctrl+T",
+                action=self.open_appearance_dialog
+            ),
+            CommandItem(
+                id="lib_add_folder",
+                title="Library: Add Folder Shortcut...",
+                category="Library",
+                action=lambda: self.home_view._on_add_folder_clicked(None)
+            ),
+            CommandItem(
+                id="lib_open_pgn",
+                title="Library: Open PGN Database File...",
+                category="Library",
+                shortcut="Ctrl+O",
+                action=lambda: self.home_view._on_open_file_clicked(None)
+            ),
+            CommandItem(
+                id="lib_new_pgn",
+                title="Library: Create New PGN File...",
+                category="Library",
+                action=lambda: self.home_view._on_new_pgn_clicked(None)
+            ),
             CommandItem(
                 id="board_flip",
                 title="Flip Board Perspective",
@@ -368,6 +509,17 @@ class ChessReaderWindow(Adw.ApplicationWindow):
                 )
             )
 
+        # Add piece set switching commands
+        for p_set in self.theme_manager.piece_set_manager.list_piece_sets():
+            cmds.append(
+                CommandItem(
+                    id=f"piece_set_{p_set.id}",
+                    title=f"Switch Piece Set: {p_set.name}",
+                    category="Appearance",
+                    action=lambda s_id=p_set.id: self.theme_manager.set_active_piece_set(s_id)
+                )
+            )
+
         return cmds
 
     def _toggle_engine(self):
@@ -430,6 +582,8 @@ class ChessReaderWindow(Adw.ApplicationWindow):
             )
 
     def _on_theme_changed(self, new_theme):
-        self.status_bar.theme_label.set_text(f"Theme: {new_theme.id}")
+        piece_info = self.theme_manager.active_piece_set
+        piece_desc = piece_info.name if piece_info else "Default"
+        self.status_bar.set_theme_label(f"Theme: {new_theme.id} · Pieces: {piece_desc}")
         self.asset_cache.clear()
-        self.board_view.set_theme(new_theme)
+        self.board_view.set_theme(new_theme, piece_set=piece_info)

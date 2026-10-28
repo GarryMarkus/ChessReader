@@ -31,7 +31,8 @@ class PieceAssetCache:
         theme: Optional[ChessReaderTheme],
         symbol: str,
         square_size: int,
-        scale_factor: int = 1
+        scale_factor: int = 1,
+        piece_set: Optional[object] = None
     ) -> cairo.ImageSurface:
         """
         Retrieve or render a high-DPI Cairo ImageSurface for a piece symbol.
@@ -40,14 +41,15 @@ class PieceAssetCache:
         """
         pixel_size = max(1, int(square_size * scale_factor))
         theme_id = theme.id if theme else "default"
-        cache_key = (theme_id, symbol, pixel_size, pixel_size, scale_factor)
+        piece_set_id = piece_set.id if (piece_set and hasattr(piece_set, "id")) else ""
+        cache_key = (theme_id, piece_set_id, symbol, pixel_size, pixel_size, scale_factor)
 
         surface = self._surface_cache.get(cache_key)
         if surface is not None:
             return surface
 
         # Resolve asset file path
-        asset_path = AssetResolver.resolve_piece_path(theme, symbol)
+        asset_path = AssetResolver.resolve_piece_path(theme, symbol, piece_set=piece_set)
         new_surface = self._render_asset_to_surface(asset_path, symbol, pixel_size, pixel_size)
         new_surface.set_device_scale(float(scale_factor), float(scale_factor))
         self._surface_cache[cache_key] = new_surface
@@ -93,10 +95,10 @@ class PieceAssetCache:
         self._surface_cache[cache_key] = target
         return target
 
-    def prewarm(self, theme: Optional[ChessReaderTheme], square_size: int, scale_factor: int = 1):
+    def prewarm(self, theme: Optional[ChessReaderTheme], square_size: int, scale_factor: int = 1, piece_set: Optional[object] = None):
         """Pre-render and cache all 12 pieces for the specified dimensions."""
         for symbol in AssetResolver.PIECE_SYMBOLS:
-            self.get_piece_surface(theme, symbol, square_size, scale_factor)
+            self.get_piece_surface(theme, symbol, square_size, scale_factor, piece_set=piece_set)
 
     def clear(self):
         """Flush the cache (useful when switching themes or clearing memory)."""

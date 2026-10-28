@@ -1,0 +1,43 @@
+app-id: io.github.antigravity.ChessReader
+runtime: org.gnome.Platform
+runtime-version: '46'
+sdk: org.gnome.Sdk
+command: chess-reader
+
+finish-args:
+  - --share=ipc
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --device=dri
+  - --filesystem=xdg-config/chess-reader:create
+  - --filesystem=home:ro
+
+modules:
+  - name: stockfish
+    buildsystem: simple
+    build-commands:
+      - make -C src -j $FLATPAK_BUILDER_N_JOBS build ARCH=x86-64-avx2
+      - install -Dm755 src/stockfish /app/bin/stockfish
+    sources:
+      - type: git
+        url: https://github.com/official-stockfish/Stockfish.git
+        tag: sf_16.1
+
+  - name: python3-chess
+    buildsystem: simple
+    build-commands:
+      - pip3 install --no-deps --prefix=/app chess PyYAML pydantic pycairo pillow
+    sources:
+      - type: pypi
+        name: chess
+        version: 1.11.2
+
+  - name: chess-reader
+    buildsystem: simple
+    build-commands:
+      - pip3 install --no-deps --prefix=/app .
+      - install -Dm644 data/io.github.antigravity.ChessReader.desktop /app/share/applications/io.github.antigravity.ChessReader.desktop
+      - install -Dm644 data/io.github.antigravity.ChessReader.metainfo.xml /app/share/metainfo/io.github.antigravity.ChessReader.metainfo.xml
+    sources:
+      - type: dir
+        path: ..

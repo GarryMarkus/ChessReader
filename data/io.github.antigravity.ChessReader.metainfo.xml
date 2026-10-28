@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.antigravity.ChessReader</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>ChessReader</name>
+  <summary>High-performance Chess PGN Viewer, Editor, and Annotator for Linux</summary>
+  <description>
+    <p>
+      ChessReader combines industrial-strength chess logic with the distraction-free,
+      hyper-minimal aesthetic of the Zed Editor.
+    </p>
+    <ul>
+      <li>Unified Client-Side Decoration (CSD) headerbar with dynamic breadcrumb navigation.</li>
+      <li>Monospace indented move tree view for recursive variation trees (RAVs).</li>
+      <li>Built-in asynchronous Stockfish 18 UCI engine with live Multi-PV candidate lines and evaluation bar.</li>
+      <li>Custom piece and board theme loading system with high-DPI caching.</li>
+      <li>Interactive keyboard-driven workflow with Ctrl+K Command Palette and FEN position editor.</li>
+    </ul>
+  </description>
+  <url type="homepage">https://github.com/GarryMarkus/ChessReader</url>
+  <url type="bugtracker">https://github.com/GarryMarkus/ChessReader/issues</url>
+  <launchable type="desktop-id">io.github.antigravity.ChessReader.desktop</launchable>
+  <provides>
+    <mediatype>application/x-chess-pgn</mediatype>
+  </provides>
+  <releases>
+    <release version="0.1.0" date="2026-10-28"/>
+  </releases>
+</component>

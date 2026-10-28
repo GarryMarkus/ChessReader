@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=ChessReader
+Comment=High-performance Chess PGN Viewer, Editor, and Annotator with Zed aesthetic
+Exec=chess-reader
+Icon=io.github.antigravity.ChessReader
+Terminal=false
+Type=Application
+Categories=Game;BoardGame;StrategyGame;
+Keywords=chess;pgn;viewer;stockfish;uci;analysis;zed;
+StartupNotify=true
+MimeType=application/x-chess-pgn;

@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chess-reader"
+version = "0.1.0"
+description = "High-performance Chess PGN Viewer, Editor, and Annotator for Linux with the Zed aesthetic."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Antigravity Systems", email = "antigravity@example.com" }
+]
+dependencies = [
+    "chess>=1.11.0",
+    "PyYAML>=6.0.1",
+    "pydantic>=2.5.0",
+    "pycairo>=1.26.0",
+    "pillow>=10.2.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "flake8>=7.0.0"
+]
+
+[project.scripts]
+chess-reader = "chess_reader.main:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

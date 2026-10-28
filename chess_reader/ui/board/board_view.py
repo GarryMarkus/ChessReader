@@ -65,7 +65,7 @@ class ChessBoardView(Gtk.DrawingArea):
         self.theme: Optional[ChessReaderTheme] = theme
         self.piece_set: Optional[object] = piece_set
         self.asset_cache: PieceAssetCache = asset_cache or PieceAssetCache()
-        self.geometry = BoardGeometry()
+        self.geometry = BoardGeometry(border_width=22.0)
 
         # Domain State
         self.board = chess.Board()
@@ -291,35 +291,49 @@ class ChessBoardView(Gtk.DrawingArea):
     # Cairo Drawing Pipeline (120 FPS capable)
     # -------------------------------------------------------------------------
     def _on_draw(self, area, ctx: cairo.Context, width: int, height: int):
-        self.geometry.update_bounds(width, height)
+        self.geometry.update_bounds(width, height, border_width=22.0)
         sq_size = self.geometry.square_size
         if sq_size <= 0:
             return
 
-        # 1. Background
-        bg_color = parse_color(self.theme.board.dark_square if self.theme else "#18181b")
-        ctx.set_source_rgba(bg_color[0], bg_color[1], bg_color[2], 1.0)
+        # 1. Background: Neutral dark container background (no board color spill!)
+        ctx.set_source_rgba(0.094, 0.094, 0.106, 1.0)  # #18181b
         ctx.paint()
 
-        # 2. Board Grid (Squares)
+        # 2. Board Frame & Border (ChessBase style)
+        tot_sz = self.geometry.total_size
+        bx = self.geometry.offset_x
+        by = self.geometry.offset_y
+        border_c = parse_color(self.theme.board.border_color if self.theme else "#23272e")
+        ctx.set_source_rgba(border_c[0], border_c[1], border_c[2], 1.0)
+        ctx.rectangle(bx, by, tot_sz, tot_sz)
+        ctx.fill()
+
+        # Crisp outer border frame stroke
+        ctx.set_source_rgba(0.25, 0.27, 0.32, 0.8)
+        ctx.set_line_width(1.0)
+        ctx.rectangle(bx + 0.5, by + 0.5, tot_sz - 1.0, tot_sz - 1.0)
+        ctx.stroke()
+
+        # 3. Board Grid (Squares)
         self._draw_grid_squares(ctx)
 
-        # 3. Coordinate Labels
+        # 4. Coordinate Labels (Above/On border, ChessBase style)
         self._draw_coordinates(ctx)
 
-        # 4. State Highlights (Last Move, Check, Selection)
+        # 5. State Highlights (Last Move, Check, Selection)
         self._draw_highlights(ctx)
 
-        # 5. Static Pieces
+        # 6. Static Pieces
         self._draw_pieces(ctx)
 
-        # 6. Legal Move Indicators
+        # 7. Legal Move Indicators
         self._draw_legal_move_indicators(ctx)
 
-        # 7. Interactive Drawings (Arrows & Live Drag)
+        # 8. Interactive Drawings (Arrows & Live Drag)
         self._draw_annotations(ctx)
 
-        # 8. Floating Dragged Piece
+        # 9. Floating Dragged Piece
         if self.is_dragging and self.drag_square is not None:
             self._draw_dragged_piece(ctx)
 
@@ -327,23 +341,29 @@ class ChessBoardView(Gtk.DrawingArea):
         sq_size = self.geometry.square_size
         scale_factor = self.get_scale_factor()
         board_sz = int(self.geometry.board_size)
+        sx = self.geometry.squares_offset_x
+        sy = self.geometry.squares_offset_y
 
         # 1. Full-board backdrop image rendering
         if self.theme and self.theme.board.type == "backdrop":
             backdrop_surf = self.asset_cache.get_board_backdrop_surface(self.theme, board_sz, scale_factor)
             if backdrop_surf:
                 ctx.save()
-                bx = self.geometry.offset_x
-                by = self.geometry.offset_y
                 if self.flipped:
-                    cx = bx + (board_sz / 2.0)
-                    cy = by + (board_sz / 2.0)
+                    cx = sx + (board_sz / 2.0)
+                    cy = sy + (board_sz / 2.0)
                     ctx.translate(cx, cy)
                     ctx.rotate(3.141592653589793)
                     ctx.translate(-cx, -cy)
-                ctx.set_source_surface(backdrop_surf, bx, by)
+                ctx.set_source_surface(backdrop_surf, sx, sy)
                 ctx.paint()
                 ctx.restore()
+
+                # Inner border outline between squares and border rim
+                ctx.set_source_rgba(0.12, 0.13, 0.16, 0.9)
+                ctx.set_line_width(1.0)
+                ctx.rectangle(sx - 0.5, sy - 0.5, board_sz + 1.0, board_sz + 1.0)
+                ctx.stroke()
                 return
 
         # 2. Standard solid/dual-tile square grid rendering
@@ -358,47 +378,92 @@ class ChessBoardView(Gtk.DrawingArea):
             ctx.rectangle(x, y, w, h)
             ctx.fill()
 
+        # Inner border outline between squares and border rim
+        ctx.set_source_rgba(0.12, 0.13, 0.16, 0.9)
+        ctx.set_line_width(1.0)
+        ctx.rectangle(sx - 0.5, sy - 0.5, board_sz + 1.0, board_sz + 1.0)
+        ctx.stroke()
+
     def _draw_coordinates(self, ctx: cairo.Context):
         if self.theme and not self.theme.board.coordinates.show:
             return
 
-        font_size = self.theme.board.coordinates.font_size if self.theme else 11
+        font_size = self.theme.board.coordinates.font_size if self.theme else 10
         font_family = self.theme.board.coordinates.font_family if self.theme else "JetBrains Mono"
-        light_c = parse_color(self.theme.board.coordinates.light_color if self.theme else "#71717a")
-        dark_c = parse_color(self.theme.board.coordinates.dark_color if self.theme else "#a1a1aa")
+        light_c = parse_color(self.theme.board.coordinates.light_color if self.theme else "#a1a1aa")
+        dark_c = parse_color(self.theme.board.coordinates.dark_color if self.theme else "#d4d4d8")
 
         layout = PangoCairo.create_layout(ctx)
-        desc = Pango.FontDescription.from_string(f"{font_family} {font_size}")
+        desc = Pango.FontDescription.from_string(f"{font_family} Bold {font_size}")
         layout.set_font_description(desc)
 
         files = "abcdefgh"
         ranks = "12345678"
         sq_size = self.geometry.square_size
+        border = self.geometry.effective_border
 
-        # Render files along bottom row and ranks along left column
-        for col in range(8):
-            file_char = files[7 - col] if self.flipped else files[col]
-            sq = chess.square(7 - col if self.flipped else col, 0 if not self.flipped else 7)
-            x, y, w, h = self.geometry.square_to_rect(sq)
-            is_light = (chess.square_file(sq) + chess.square_rank(sq)) % 2 != 0
-            color = dark_c if is_light else light_c
+        if border >= 12.0:
+            # ChessBase Style: Render notation cleanly on the border margins
+            # 1. Files along bottom and top border
+            for col in range(8):
+                file_char = files[7 - col] if self.flipped else files[col]
+                layout.set_text(file_char, -1)
+                ink, logical = layout.get_pixel_extents()
+                cx = self.geometry.squares_offset_x + (col * sq_size) + (sq_size / 2.0) - (logical.width / 2.0)
+                
+                # Bottom border
+                cy_bot = self.geometry.offset_y + self.geometry.total_size - (border / 2.0) - (logical.height / 2.0)
+                ctx.set_source_rgba(dark_c[0], dark_c[1], dark_c[2], dark_c[3])
+                ctx.move_to(cx, cy_bot)
+                PangoCairo.show_layout(ctx, layout)
 
-            layout.set_text(file_char, -1)
-            ctx.set_source_rgba(color[0], color[1], color[2], color[3])
-            ctx.move_to(x + w - 12.0, y + h - 14.0)
-            PangoCairo.show_layout(ctx, layout)
+                # Top border
+                cy_top = self.geometry.offset_y + (border / 2.0) - (logical.height / 2.0)
+                ctx.move_to(cx, cy_top)
+                PangoCairo.show_layout(ctx, layout)
 
-        for row in range(8):
-            rank_char = ranks[row] if self.flipped else ranks[7 - row]
-            sq = chess.square(0 if not self.flipped else 7, row if self.flipped else 7 - row)
-            x, y, w, h = self.geometry.square_to_rect(sq)
-            is_light = (chess.square_file(sq) + chess.square_rank(sq)) % 2 != 0
-            color = dark_c if is_light else light_c
+            # 2. Ranks along left and right border
+            for row in range(8):
+                rank_char = ranks[row] if self.flipped else ranks[7 - row]
+                layout.set_text(rank_char, -1)
+                ink, logical = layout.get_pixel_extents()
+                cy = self.geometry.squares_offset_y + (row * sq_size) + (sq_size / 2.0) - (logical.height / 2.0)
 
-            layout.set_text(rank_char, -1)
-            ctx.set_source_rgba(color[0], color[1], color[2], color[3])
-            ctx.move_to(x + 3.0, y + 2.0)
-            PangoCairo.show_layout(ctx, layout)
+                # Left border
+                cx_left = self.geometry.offset_x + (border / 2.0) - (logical.width / 2.0)
+                ctx.set_source_rgba(dark_c[0], dark_c[1], dark_c[2], dark_c[3])
+                ctx.move_to(cx_left, cy)
+                PangoCairo.show_layout(ctx, layout)
+
+                # Right border
+                cx_right = self.geometry.offset_x + self.geometry.total_size - (border / 2.0) - (logical.width / 2.0)
+                ctx.move_to(cx_right, cy)
+                PangoCairo.show_layout(ctx, layout)
+        else:
+            # Fallback to inside square coordinates if no border
+            for col in range(8):
+                file_char = files[7 - col] if self.flipped else files[col]
+                sq = chess.square(7 - col if self.flipped else col, 0 if not self.flipped else 7)
+                x, y, w, h = self.geometry.square_to_rect(sq)
+                is_light = (chess.square_file(sq) + chess.square_rank(sq)) % 2 != 0
+                color = dark_c if is_light else light_c
+
+                layout.set_text(file_char, -1)
+                ctx.set_source_rgba(color[0], color[1], color[2], color[3])
+                ctx.move_to(x + w - 12.0, y + h - 14.0)
+                PangoCairo.show_layout(ctx, layout)
+
+            for row in range(8):
+                rank_char = ranks[row] if self.flipped else ranks[7 - row]
+                sq = chess.square(0 if not self.flipped else 7, row if self.flipped else 7 - row)
+                x, y, w, h = self.geometry.square_to_rect(sq)
+                is_light = (chess.square_file(sq) + chess.square_rank(sq)) % 2 != 0
+                color = dark_c if is_light else light_c
+
+                layout.set_text(rank_char, -1)
+                ctx.set_source_rgba(color[0], color[1], color[2], color[3])
+                ctx.move_to(x + 3.0, y + 2.0)
+                PangoCairo.show_layout(ctx, layout)
 
     def _draw_highlights(self, ctx: cairo.Context):
         # 1. Last Move Highlight

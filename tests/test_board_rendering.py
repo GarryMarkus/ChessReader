@@ -38,6 +38,23 @@ def test_board_geometry_calculations():
     assert geo.point_to_square(10, 10) is None  # in left margin
 
 
+def test_board_geometry_with_border():
+    # 800 x 800 with 20px border
+    geo = BoardGeometry(800, 800, border_width=20.0)
+    assert geo.total_size == 800.0
+    assert geo.effective_border == 20.0
+    assert geo.inner_size == 760.0
+    assert geo.square_size == 760.0 / 8.0
+    assert geo.squares_offset_x == 20.0
+    assert geo.squares_offset_y == 20.0
+
+    # Point in border margin should be None
+    assert geo.point_to_square(5, 5) is None
+    # Point inside a1
+    a1_sq = geo.point_to_square(25, 775)
+    assert a1_sq == chess.A1
+
+
 def test_board_geometry_flipped():
     geo = BoardGeometry(800, 800, flipped=True)
     e4 = chess.E4

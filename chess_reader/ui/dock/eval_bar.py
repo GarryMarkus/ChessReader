@@ -36,7 +36,7 @@ class EvalBar(Gtk.Box):
         self.append(self.bar_area)
 
         # 2. Score Badge positioned cleanly BELOW the bar
-        self.score_label = Gtk.Label(label="+0.0")
+        self.score_label = Gtk.Label(label="+0.0", xalign=0.5)
         self.score_label.add_css_class("eval-score-label")
         self.score_label.add_css_class("eval-score-even")
         self.score_label.set_hexpand(True)

@@ -233,7 +233,6 @@ paned.zed-workspace > separator {
     background-color: @zed_bg_darkest;
     border: 1px solid @zed_border_subtle;
     margin-top: 4px;
-    text-align: center;
 }
 
 .eval-score-pos {

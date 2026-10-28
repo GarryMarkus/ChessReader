@@ -8,7 +8,7 @@ import gi
 
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
-from gi.repository import Gtk, Adw, Gdk
+from gi.repository import Gtk, Adw, Gdk, Gio
 
 from chess_reader.ui.window import ChessReaderWindow
 
@@ -19,7 +19,7 @@ class ChessReaderApp(Adw.Application):
     def __init__(self):
         super().__init__(
             application_id="io.github.antigravity.ChessReader",
-            flags=0
+            flags=Gio.ApplicationFlags.HANDLES_OPEN
         )
 
     def do_startup(self):
@@ -35,6 +35,16 @@ class ChessReaderApp(Adw.Application):
         if not win:
             win = ChessReaderWindow(application=self)
         win.present()
+
+    def do_open(self, files, n_files, hint):
+        self.do_activate()
+        win = self.props.active_window
+        if win and files:
+            file_path = files[0].get_path()
+            if file_path and os.path.exists(file_path):
+                game_ast = win.library_store.load_game_from_pgn(file_path, 0)
+                if game_ast:
+                    win._on_library_game_loaded(game_ast, file_path)
 
     def _load_css(self):
         css_provider = Gtk.CssProvider()

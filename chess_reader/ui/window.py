@@ -18,6 +18,7 @@ from chess_reader.engine.uci_client import UCIEngineManager
 from chess_reader.engine.game_review import BatchGameReviewer
 from chess_reader.ui.board.board_view import ChessBoardView
 from chess_reader.ui.notation.move_tree_view import MoveTreeView
+from chess_reader.ui.notation.chapter_nav_bar import ChapterNavBar
 from chess_reader.ui.dock.eval_bar import EvalBar
 from chess_reader.ui.dock.engine_dock import EngineDock
 from chess_reader.ui.palette.command_palette import CommandPalette, CommandItem
@@ -186,6 +187,11 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         self.engine_manager = UCIEngineManager()
         self.engine_enabled = True
 
+        # Multi-game & Chapter Navigation state
+        self.active_pgn_path: Optional[str] = None
+        self.active_game_index: int = 0
+        self.active_pgn_games: List[dict] = []
+
         # Libadwaita ToolbarView handles CSD chrome and status bars seamlessly
         self.toolbar_view = Adw.ToolbarView()
         self.set_content(self.toolbar_view)
@@ -254,6 +260,14 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         self.notation_panel.add_css_class("zed-sidebar")
         self.notation_panel.set_size_request(380, -1)
 
+        # Chapter / Multi-Game Navigation Bar
+        self.chapter_nav_bar = ChapterNavBar(
+            on_prev_game=self.load_prev_game,
+            on_next_game=self.load_next_game,
+            on_select_game=self.load_game_by_index
+        )
+        self.notation_panel.append(self.chapter_nav_bar)
+
         self.move_tree_view = MoveTreeView(game_model=self.game_model)
         self.notation_panel.append(self.move_tree_view)
         self.workspace.set_end_child(self.notation_panel)
@@ -294,6 +308,7 @@ class ChessReaderWindow(Adw.ApplicationWindow):
     def _on_window_key_pressed(self, ctrl, keyval, keycode, state):
         is_ctrl = bool(state & Gdk.ModifierType.CONTROL_MASK)
         is_shift = bool(state & Gdk.ModifierType.SHIFT_MASK)
+        is_alt = bool(state & Gdk.ModifierType.ALT_MASK)
 
         # Ctrl+K or Ctrl+P -> Open Command Palette
         if is_ctrl and keyval in (Gdk.KEY_k, Gdk.KEY_K, Gdk.KEY_p, Gdk.KEY_P):
@@ -373,6 +388,16 @@ class ChessReaderWindow(Adw.ApplicationWindow):
                 self._toggle_engine()
                 return True
 
+            # Alt+Left, PageUp, or [ -> Previous Chapter / Game in PGN
+            if (is_alt and keyval == Gdk.KEY_Left) or keyval == Gdk.KEY_Page_Up or (not is_ctrl and keyval == Gdk.KEY_bracketleft):
+                self.load_prev_game()
+                return True
+
+            # Alt+Right, PageDown, or ] -> Next Chapter / Game in PGN
+            if (is_alt and keyval == Gdk.KEY_Right) or keyval == Gdk.KEY_Page_Down or (not is_ctrl and keyval == Gdk.KEY_bracketright):
+                self.load_next_game()
+                return True
+
         return False
 
     def open_command_palette(self):
@@ -447,24 +472,70 @@ class ChessReaderWindow(Adw.ApplicationWindow):
         if self.engine_enabled:
             self._trigger_engine_analysis()
 
-    def _on_library_game_loaded(self, game_ast: chess.pgn.Game, pgn_path: str):
+    def _on_library_game_loaded(self, game_ast: chess.pgn.Game, pgn_path: str, game_index: int = 0):
         """Load a game from the library and transition directly to the board."""
+        self.active_pgn_path = pgn_path
+        self.active_game_index = game_index
+        if pgn_path:
+            self.active_pgn_games = self.library_store.list_games_in_pgn(pgn_path)
+        else:
+            self.active_pgn_games = []
+
         self.game_model = GameModel(game_ast)
         self.game_model.add_listener(self._on_game_model_changed)
         self.move_tree_view.model = self.game_model
         self.move_tree_view.rebuild_tree()
         self._sync_view_to_game()
         self._trigger_engine_analysis()
+
+        # Update Chapter / Multi-Game Navigation Bar
+        self.chapter_nav_bar.update_game_info(
+            current_index=self.active_game_index,
+            total_games=len(self.active_pgn_games),
+            games_list=self.active_pgn_games
+        )
+
         self.show_board_view()
+
+    def load_prev_game(self):
+        """Navigate to the previous game / chapter in the active PGN database."""
+        if not self.active_pgn_path or not self.active_pgn_games:
+            return
+        if self.active_game_index > 0:
+            self.load_game_by_index(self.active_game_index - 1)
+
+    def load_next_game(self):
+        """Navigate to the next game / chapter in the active PGN database."""
+        if not self.active_pgn_path or not self.active_pgn_games:
+            return
+        if self.active_game_index + 1 < len(self.active_pgn_games):
+            self.load_game_by_index(self.active_game_index + 1)
+
+    def load_game_by_index(self, index: int):
+        """Load game by index from the active PGN archive."""
+        if not self.active_pgn_path:
+            return
+        game_ast = self.library_store.load_game_from_pgn(self.active_pgn_path, index)
+        if game_ast:
+            self._on_library_game_loaded(game_ast, self.active_pgn_path, index)
 
     def reset_to_start(self):
         """Reset board to initial chess starting position."""
+        self.active_pgn_path = None
+        self.active_game_index = 0
+        self.active_pgn_games = []
         self.game_model = GameModel()
         self.game_model.add_listener(self._on_game_model_changed)
         self.move_tree_view.model = self.game_model
         self.move_tree_view.rebuild_tree()
         self._sync_view_to_game()
         self._trigger_engine_analysis()
+        self.chapter_nav_bar.update_game_info(
+            current_index=0,
+            total_games=1,
+            games_list=[],
+            title="Starting Position"
+        )
 
     def run_full_game_review(self):
         """Run batch analysis across all moves in active game."""

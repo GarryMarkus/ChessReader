@@ -8,7 +8,8 @@ import os
 from typing import Optional, Callable, List, Dict, Any
 import gi
 gi.require_version('Gtk', '4.0')
-from gi.repository import Gtk, Gdk
+gi.require_version('Pango', '1.0')
+from gi.repository import Gtk, Gdk, Pango
 
 import chess.pgn
 from chess_reader.core.library_store import LibraryStore
@@ -100,7 +101,11 @@ class HomeView(Gtk.Box):
         """Construct the split panels: Left (Folder Shortcuts & Recents), Right (Files & Game Browser)."""
         paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
         paned.add_css_class("zed-workspace")
-        paned.set_position(380)
+        paned.set_position(360)
+        paned.set_shrink_start_child(False)
+        paned.set_resize_start_child(False)
+        paned.set_shrink_end_child(False)
+        paned.set_resize_end_child(True)
         paned.set_vexpand(True)
         self.append(paned)
 
@@ -109,7 +114,7 @@ class HomeView(Gtk.Box):
         # ---------------------------------------------------------------------
         left_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         left_box.add_css_class("zed-sidebar")
-        left_box.set_size_request(320, -1)
+        left_box.set_size_request(280, -1)
         paned.set_start_child(left_box)
 
         left_scrolled = Gtk.ScrolledWindow()
@@ -161,7 +166,11 @@ class HomeView(Gtk.Box):
 
         # Split into Files list (top) and Game list (bottom)
         right_paned = Gtk.Paned(orientation=Gtk.Orientation.VERTICAL)
-        right_paned.set_position(240)
+        right_paned.set_position(300)
+        right_paned.set_shrink_start_child(True)
+        right_paned.set_shrink_end_child(True)
+        right_paned.set_resize_start_child(True)
+        right_paned.set_resize_end_child(True)
         right_paned.set_vexpand(True)
         right_box.append(right_paned)
 
@@ -174,6 +183,7 @@ class HomeView(Gtk.Box):
 
         self.folder_title_lbl = Gtk.Label(label="Select a folder shortcut to view its chess databases", xalign=0.0)
         self.folder_title_lbl.add_css_class("zed-section-title")
+        self.folder_title_lbl.set_ellipsize(Pango.EllipsizeMode.END)
         files_section.append(self.folder_title_lbl)
 
         files_scrolled = Gtk.ScrolledWindow()
@@ -196,6 +206,7 @@ class HomeView(Gtk.Box):
         games_hdr = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         self.pgn_title_lbl = Gtk.Label(label="GAMES IN ARCHIVE", xalign=0.0)
         self.pgn_title_lbl.add_css_class("zed-section-title")
+        self.pgn_title_lbl.set_ellipsize(Pango.EllipsizeMode.END)
         self.pgn_title_lbl.set_hexpand(True)
         games_hdr.append(self.pgn_title_lbl)
 
@@ -260,8 +271,10 @@ class HomeView(Gtk.Box):
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         name_lbl = Gtk.Label(label="All Databases & Archives", xalign=0.0)
         name_lbl.add_css_class("zed-card-title")
+        name_lbl.set_ellipsize(Pango.EllipsizeMode.END)
         desc_lbl = Gtk.Label(label="Aggregated view of all local chess databases", xalign=0.0)
         desc_lbl.add_css_class("zed-card-desc")
+        desc_lbl.set_ellipsize(Pango.EllipsizeMode.END)
         vbox.append(name_lbl)
         vbox.append(desc_lbl)
         vbox.set_hexpand(True)
@@ -309,8 +322,10 @@ class HomeView(Gtk.Box):
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         name_lbl = Gtk.Label(label=shortcut["name"], xalign=0.0)
         name_lbl.add_css_class("zed-card-title")
+        name_lbl.set_ellipsize(Pango.EllipsizeMode.END)
         path_lbl = Gtk.Label(label=shortcut["path"], xalign=0.0)
         path_lbl.add_css_class("zed-card-desc")
+        path_lbl.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
         vbox.append(name_lbl)
         vbox.append(path_lbl)
         vbox.set_hexpand(True)
@@ -324,6 +339,7 @@ class HomeView(Gtk.Box):
         del_btn = Gtk.Button(label="✕")
         del_btn.add_css_class("flat")
         del_btn.add_css_class("zed-btn-remove")
+        del_btn.set_hexpand(False)
         del_btn.set_tooltip_text("Remove folder shortcut")
         del_btn.connect("clicked", lambda _, p=shortcut["path"]: self._remove_folder(p))
         card.append(del_btn)
@@ -348,10 +364,12 @@ class HomeView(Gtk.Box):
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         name_lbl = Gtk.Label(label=rec["name"], xalign=0.0)
         name_lbl.add_css_class("zed-card-title")
+        name_lbl.set_ellipsize(Pango.EllipsizeMode.END)
 
         count = rec.get("game_count", 1)
         desc_lbl = Gtk.Label(label=f"{count} game{'s' if count != 1 else ''} · {rec.get('size_str', '')}", xalign=0.0)
         desc_lbl.add_css_class("zed-card-desc")
+        desc_lbl.set_ellipsize(Pango.EllipsizeMode.END)
         vbox.append(name_lbl)
         vbox.append(desc_lbl)
         vbox.set_hexpand(True)
@@ -480,9 +498,11 @@ class HomeView(Gtk.Box):
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         name_lbl = Gtk.Label(label=pgn_info["name"], xalign=0.0)
         name_lbl.add_css_class("zed-card-title")
+        name_lbl.set_ellipsize(Pango.EllipsizeMode.END)
         meta_str = f"{pgn_info['game_count']} game{'s' if pgn_info['game_count'] != 1 else ''} · {pgn_info['size_str']} · Modified: {pgn_info['mtime_str']}"
         meta_lbl = Gtk.Label(label=meta_str, xalign=0.0)
         meta_lbl.add_css_class("zed-card-desc")
+        meta_lbl.set_ellipsize(Pango.EllipsizeMode.END)
         vbox.append(name_lbl)
         vbox.append(meta_lbl)
         vbox.set_hexpand(True)
@@ -540,11 +560,13 @@ class HomeView(Gtk.Box):
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         players_lbl = Gtk.Label(label=f"{game['white']} vs. {game['black']}", xalign=0.0)
         players_lbl.add_css_class("zed-game-players")
+        players_lbl.set_ellipsize(Pango.EllipsizeMode.END)
 
         eco_part = f"[{game['eco']}] " if game.get("eco") else ""
         meta_str = f"{eco_part}{game['event']} · {game['date']}"
         meta_lbl = Gtk.Label(label=meta_str, xalign=0.0)
         meta_lbl.add_css_class("zed-game-meta")
+        meta_lbl.set_ellipsize(Pango.EllipsizeMode.END)
         vbox.append(players_lbl)
         vbox.append(meta_lbl)
         vbox.set_hexpand(True)
@@ -594,7 +616,10 @@ class HomeView(Gtk.Box):
             return
         game_ast = self.library_store.load_game_from_pgn(self.active_pgn_path, index)
         if game_ast and self.on_load_game:
-            self.on_load_game(game_ast, self.active_pgn_path)
+            try:
+                self.on_load_game(game_ast, self.active_pgn_path, index)
+            except TypeError:
+                self.on_load_game(game_ast, self.active_pgn_path)
 
     def _navigate_to_board(self):
         if self.on_switch_to_board:

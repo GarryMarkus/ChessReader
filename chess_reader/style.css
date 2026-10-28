@@ -688,3 +688,85 @@ window.zed-modal-window {
     font-style: italic;
     padding: 12px 6px;
 }
+
+/* ==========================================================================
+   Chapter & Multi-Game Navigation Bar
+   ========================================================================== */
+
+.chapter-nav-bar {
+    background-color: @zed_bg_darkest;
+    border-bottom: 1px solid @zed_border_subtle;
+    padding: 6px 10px;
+}
+
+.chapter-btn-nav {
+    font-family: "JetBrains Mono", "Adwaita Mono", monospace;
+    font-size: 11px;
+    font-weight: 600;
+    color: @zed_fg_secondary;
+    background-color: @zed_bg_panel;
+    border: 1px solid @zed_border_subtle;
+    border-radius: 4px;
+    padding: 3px 8px;
+    transition: all 120ms ease;
+}
+
+.chapter-btn-nav:hover {
+    color: @zed_fg_primary;
+    background-color: @zed_bg_hover;
+    border-color: @zed_border_focus;
+}
+
+.chapter-btn-nav:disabled {
+    opacity: 0.35;
+}
+
+.chapter-title-btn {
+    font-size: 11px;
+    background-color: @zed_bg_panel;
+    border: 1px solid @zed_border_subtle;
+    border-radius: 4px;
+    padding: 3px 8px;
+    transition: all 120ms ease;
+}
+
+.chapter-title-btn:hover {
+    background-color: @zed_bg_hover;
+    border-color: @zed_border_focus;
+}
+
+.chapter-badge {
+    font-family: "JetBrains Mono", "Adwaita Mono", monospace;
+    font-size: 10px;
+    font-weight: 700;
+    color: @zed_accent_yellow;
+    background-color: rgba(229, 192, 123, 0.12);
+    border: 1px solid rgba(229, 192, 123, 0.28);
+    border-radius: 3px;
+    padding: 1px 5px;
+}
+
+.chapter-title-text {
+    font-weight: 600;
+    color: @zed_fg_primary;
+}
+
+.chapter-chevron {
+    font-size: 10px;
+    color: @zed_fg_muted;
+}
+
+.chapter-popover-item {
+    border-radius: 4px;
+    padding: 2px 4px;
+    transition: background-color 100ms ease;
+}
+
+.chapter-popover-item:hover {
+    background-color: @zed_bg_hover;
+}
+
+.chapter-popover-active {
+    background-color: rgba(97, 175, 239, 0.12);
+    border: 1px solid rgba(97, 175, 239, 0.35);
+}

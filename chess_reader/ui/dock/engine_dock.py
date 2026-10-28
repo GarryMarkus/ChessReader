@@ -32,8 +32,9 @@ class EngineDock(Gtk.Box):
         self.content_box.add_css_class("engine-dock-content")
         self.append(self.content_box)
 
-        # Multi-PV Lines Container
+        # Multi-PV Lines Container (Constant height prevents chessboard from shifting when line count changes)
         self.lines_container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
+        self.lines_container.set_size_request(-1, 88)
         self.content_box.append(self.lines_container)
 
         # Vector CPL Graph (initially visible alongside lines or toggleable)
